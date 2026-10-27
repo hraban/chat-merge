@@ -2,7 +2,7 @@
 
 (name twitch_chat)
 
-(generate_opam_files true)
+; (generate_opam_files true)
 
 (package
  (name twitch_chat)
