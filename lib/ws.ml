@@ -1,83 +1,97 @@
-(* Pull-style wrapper around httpun-ws-eio's callback API: incoming messages
-   are reassembled from their frames and queued, so callers can just [recv]. *)
+(* Minimal RFC 6455 WebSocket client: just enough to talk to Twitch's chat
+   endpoint. No extensions, no Sec-WebSocket-Accept verification. *)
 
-type event =
-  | Connected of Httpun_ws.Wsd.t
-  | Message of string
-  | Closed of string
+module R = Eio.Buf_read
 
 type t = {
-  client : Httpun_ws_eio.Client.t;
-  wsd : Httpun_ws.Wsd.t;
-  events : event Eio.Stream.t;
+  flow : Eio.Flow.two_way_ty Eio.Resource.t;
+  buf : R.t;
 }
 
-let error_to_string : Httpun_ws.Client_connection.error -> string = function
-  | `Handshake_failure (rsp, _body) ->
-      Format.asprintf "handshake failed: %a" Httpun.Response.pp_hum rsp
-  | `Malformed_response msg -> "malformed response: " ^ msg
-  | `Invalid_response_body_length _ -> "invalid response body length"
-  | `Exn exn -> Printexc.to_string exn
+exception Protocol_error of string
 
-let websocket_handler events wsd =
-  Eio.Stream.add events (Connected wsd);
-  let message = Buffer.create 4096 in
-  let frame ~opcode ~is_fin ~len:_ payload =
-    (* Every payload must be read to the end, or later frames never arrive. *)
-    let rec read_into buf ~on_eof =
-      Httpun_ws.Payload.schedule_read payload ~on_eof ~on_read:(fun bs ~off ~len ->
-          Buffer.add_string buf (Bigstringaf.substring bs ~off ~len);
-          read_into buf ~on_eof)
-    in
-    let discard () = read_into (Buffer.create 0) ~on_eof:ignore in
-    match (opcode : Httpun_ws.Websocket.Opcode.t) with
-    | `Text | `Binary | `Continuation ->
-        read_into message ~on_eof:(fun () ->
-            if is_fin then (
-              Eio.Stream.add events (Message (Buffer.contents message));
-              Buffer.clear message))
-    | `Ping ->
-        discard ();
-        Httpun_ws.Wsd.send_pong wsd
-    | `Connection_close ->
-        discard ();
-        Httpun_ws.Wsd.close wsd
-    | `Pong | `Other _ -> discard ()
+let fail fmt = Printf.ksprintf (fun s -> raise (Protocol_error s)) fmt
+
+let handshake ~host ~path flow =
+  let key = Base64.encode_string (Mirage_crypto_rng.generate 16) in
+  let request =
+    String.concat "\r\n"
+      [
+        Printf.sprintf "GET %s HTTP/1.1" path;
+        "Host: " ^ host;
+        "Upgrade: websocket";
+        "Connection: Upgrade";
+        "Sec-WebSocket-Key: " ^ key;
+        "Sec-WebSocket-Version: 13";
+        "";
+        "";
+      ]
   in
-  let eof ?error () =
-    let reason =
-      match error with
-      | Some (`Exn exn) -> Printexc.to_string exn
-      | None -> "closed by server"
-    in
-    Eio.Stream.add events (Closed reason)
+  Eio.Flow.copy_string request flow;
+  let buf = R.of_flow flow ~max_size:(1 lsl 20) in
+  let status = R.line buf in
+  (match String.split_on_char ' ' status with
+  | _ :: "101" :: _ -> ()
+  | _ -> fail "handshake rejected: %s" status);
+  (* Skip the response headers. *)
+  let rec skip_headers () = if R.line buf <> "" then skip_headers () in
+  skip_headers ();
+  { flow; buf }
+
+let xor_mask mask payload =
+  String.mapi
+    (fun i c -> Char.chr (Char.code c lxor Char.code mask.[i land 3]))
+    payload
+
+(* Client-to-server frames must always be masked. *)
+let send_frame t ~opcode payload =
+  let len = String.length payload in
+  let frame = Buffer.create (len + 14) in
+  Buffer.add_uint8 frame (0x80 lor opcode);
+  if len < 126 then Buffer.add_uint8 frame (0x80 lor len)
+  else if len < 0x10000 then (
+    Buffer.add_uint8 frame (0x80 lor 126);
+    Buffer.add_uint16_be frame len)
+  else (
+    Buffer.add_uint8 frame (0x80 lor 127);
+    Buffer.add_int64_be frame (Int64.of_int len));
+  let mask = Mirage_crypto_rng.generate 4 in
+  Buffer.add_string frame mask;
+  Buffer.add_string frame (xor_mask mask payload);
+  Eio.Flow.copy_string (Buffer.contents frame) t.flow
+
+let send_text t s = send_frame t ~opcode:0x1 s
+
+let read_frame t =
+  let b0 = R.uint8 t.buf in
+  let b1 = R.uint8 t.buf in
+  let len =
+    match b1 land 0x7f with
+    | 126 -> R.BE.uint16 t.buf
+    | 127 -> Int64.to_int (R.BE.uint64 t.buf)
+    | n -> n
   in
-  { Httpun_ws.Websocket_connection.frame; eof }
-
-(* Performs the HTTP upgrade on [socket]; returns once the WebSocket is open. *)
-let connect ~sw ~host ~port socket =
-  let events = Eio.Stream.create 1024 in
-  let nonce = String.init 16 (fun _ -> Char.chr (Random.int 256)) in
-  let client =
-    Httpun_ws_eio.Client.connect ~sw ~nonce ~host ~port ~resource:"/"
-      ~error_handler:(fun e -> Eio.Stream.add events (Closed (error_to_string e)))
-      ~websocket_handler:(websocket_handler events)
-      socket
+  let mask = if b1 land 0x80 <> 0 then Some (R.take 4 t.buf) else None in
+  let payload = R.take len t.buf in
+  let payload =
+    match mask with None -> payload | Some m -> xor_mask m payload
   in
-  match Eio.Stream.take events with
-  | Connected wsd -> { client; wsd; events }
-  | Closed reason -> failwith reason
-  | Message _ -> assert false
+  (b0 land 0x80 <> 0, b0 land 0x0f, payload)
 
-let rec recv t =
-  match Eio.Stream.take t.events with
-  | Message s -> `Message s
-  | Closed reason -> `Closed reason
-  | Connected _ -> recv t
-
-let send_text t s =
-  (* send_bytes masks the buffer in place, so it must be a private copy. *)
-  let b = Bytes.of_string s in
-  Httpun_ws.Wsd.send_bytes t.wsd ~kind:`Text b ~off:0 ~len:(Bytes.length b)
-
-let close t = Eio.Promise.await (Httpun_ws_eio.Client.shutdown t.client)
+(* Next complete data message, answering pings along the way.
+   [None] once the server sends a close frame. *)
+let recv t =
+  let rec collect acc =
+    let fin, opcode, payload = read_frame t in
+    match opcode with
+    | 0x0 | 0x1 | 0x2 ->
+        let acc = payload :: acc in
+        if fin then Some (String.concat "" (List.rev acc)) else collect acc
+    | 0x8 -> None
+    | 0x9 ->
+        send_frame t ~opcode:0xA payload;
+        collect acc
+    | 0xA -> collect acc
+    | op -> fail "unexpected opcode %d" op
+  in
+  collect []
