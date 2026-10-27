@@ -23,4 +23,9 @@
   (mirage-crypto-rng
    (>= 1.1))
   domain-name
-  base64))
+  base64
+  (cohttp-eio
+   (>= 6.0.0))
+  uri
+  (yojson
+   (>= 2.0))))
