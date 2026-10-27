@@ -28,6 +28,12 @@
           duneSeparateDeps = true;
           duneTreeshakeDeps = true;
           src = ./.;
+          nativeBuildInputs = with pkgs; [
+            pkg-config
+          ];
+          buildInputs = with pkgs; [
+            gmp
+          ];
         };
       };
   };
