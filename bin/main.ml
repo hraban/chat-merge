@@ -3,7 +3,9 @@
 
 open Twitch_chat
 
+(* Plain ws:// for now; Twitch also serves wss:// on 443. *)
 let host = "irc-ws.chat.twitch.tv"
+let port = 80
 
 let print_message out (msg : Irc.message) =
   match (msg.command, msg.params) with
@@ -44,29 +46,24 @@ let handle_line ws out line =
 
 (* One connection's lifetime. Returns when the server closes the socket,
    which it also does shortly after sending RECONNECT. *)
-let run_session ~net ~tls_config ~out channels =
-  Eio.Net.with_tcp_connect net ~host ~service:"443" @@ fun sock ->
-  let tls =
-    Tls_eio.client_of_flow tls_config
-      ~host:(Domain_name.host_exn (Domain_name.of_string_exn host))
-      sock
-  in
-  let ws =
-    Ws.handshake ~host ~path:"/" (tls :> Eio.Flow.two_way_ty Eio.Resource.t)
-  in
-  let guest_id = String.get_uint16_be (Mirage_crypto_rng.generate 2) 0 in
+let run_session ~net ~out channels =
+  Eio.Net.with_tcp_connect net ~host ~service:(string_of_int port)
+  @@ fun sock ->
+  Eio.Switch.run @@ fun sw ->
+  let ws = Ws.connect ~sw ~host ~port sock in
   Ws.send_text ws "CAP REQ :twitch.tv/tags twitch.tv/commands";
-  Ws.send_text ws (Printf.sprintf "NICK justinfan%d" guest_id);
+  Ws.send_text ws (Printf.sprintf "NICK justinfan%d" (Random.int 100_000));
   Ws.send_text ws
     ("JOIN " ^ String.concat "," (List.map (fun c -> "#" ^ c) channels));
   let rec loop () =
     match Ws.recv ws with
-    | None -> ()
-    | Some data ->
+    | `Closed reason -> Eio.traceln "connection closed: %s" reason
+    | `Message data ->
         List.iter (handle_line ws out) (String.split_on_char '\n' data);
         loop ()
   in
-  loop ()
+  loop ();
+  Ws.close ws
 
 let normalize_channel c =
   let c = String.lowercase_ascii c in
@@ -74,11 +71,10 @@ let normalize_channel c =
     String.sub c 1 (String.length c - 1)
   else c
 
-let ok_or_fail = function Ok x -> x | Error (`Msg m) -> failwith m
-
 let () =
   Eio_main.run @@ fun env ->
-  Mirage_crypto_rng_unix.use_default ();
+  (* Seeds the WebSocket nonce and frame masks, and the guest nick. *)
+  Random.self_init ();
   match List.tl (Array.to_list Sys.argv) with
   | [] ->
       Eio.Flow.copy_string "usage: twitch-chat CHANNEL...\n"
@@ -86,11 +82,9 @@ let () =
       exit 2
   | channels ->
       let channels = List.map normalize_channel channels in
-      let authenticator = ok_or_fail (Ca_certs.authenticator ()) in
-      let tls_config = ok_or_fail (Tls.Config.client ~authenticator ()) in
       let net = Eio.Stdenv.net env and out = Eio.Stdenv.stdout env in
       let rec forever () =
-        (try run_session ~net ~tls_config ~out channels with
+        (try run_session ~net ~out channels with
         | Eio.Cancel.Cancelled _ as e -> raise e
         | e -> Eio.traceln "connection error: %s" (Printexc.to_string e));
         Eio.traceln "disconnected, reconnecting in 2s";

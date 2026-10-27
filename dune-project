@@ -16,11 +16,9 @@
    (>= 1.0))
   (eio_main
    (>= 1.0))
-  (tls-eio
-   (>= 1.0))
-  (ca-certs
-   (>= 1.0))
-  (mirage-crypto-rng
-   (>= 1.1))
-  domain-name
-  base64))
+  httpun
+  (httpun-ws
+   (>= 0.2.0))
+  (httpun-ws-eio
+   (>= 0.2.0))
+  bigstringaf))
