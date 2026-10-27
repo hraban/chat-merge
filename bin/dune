@@ -1,4 +1,12 @@
 (executable
  (name main)
  (public_name twitch-chat)
- (libraries twitch_chat eio eio_main))
+ (libraries
+  twitch_chat
+  eio
+  eio_main
+  tls-eio
+  ca-certs
+  domain-name
+  mirage-crypto-rng
+  mirage-crypto-rng.unix))
