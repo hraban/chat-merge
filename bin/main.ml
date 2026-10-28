@@ -21,8 +21,23 @@ let youtube =
         (anon (non_empty_sequence_as_list ("TARGET" %: string)))
         ~f:(fun targets () -> Youtube.run targets))
 
+let stream =
+  Command.basic ~summary:"Interleave Twitch and YouTube chat as it arrives"
+    Command.Param.(
+      map
+        (both
+           (flag "--twitch" (optional string) ~doc:"CHANNEL Twitch channel to read")
+           (flag "--youtube" (optional string)
+              ~doc:"TARGET YouTube @handle, video ID or URL"))
+        ~f:(fun (twitch, youtube) () -> Stream.run ?twitch ?youtube ()))
+
 (* Subcommand name, with the program name that runs it directly. *)
-let commands = [ ("twitch", "twitch-chat", twitch); ("youtube", "youtube-chat", youtube) ]
+let commands =
+  [
+    ("twitch", "twitch-chat", twitch);
+    ("youtube", "youtube-chat", youtube);
+    ("stream", "stream-chat", stream);
+  ]
 
 let () =
   (* Not Sys.executable_name: that resolves the symlink we dispatch on. *)

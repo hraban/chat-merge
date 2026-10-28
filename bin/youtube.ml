@@ -86,26 +86,34 @@ let https ~authenticator =
     in
     Tls_eio.client_of_flow ?host tls_config raw
 
-let run args =
-  Eio_main.run @@ fun env ->
-  Mirage_crypto_rng_unix.use_default ();
+(* $YOUTUBE_API_KEY, or exits with an error if it isn't set. *)
+let api_key env =
   match Sys.getenv_opt "YOUTUBE_API_KEY" with
   | None | Some "" ->
       Eio.Flow.copy_string "youtube: set YOUTUBE_API_KEY\n"
         (Eio.Stdenv.stderr env);
       exit 2
-  | Some key ->
-      let authenticator = ok_or_fail (Ca_certs.authenticator ()) in
-      let client =
-        Cohttp_eio.Client.make
-          ~https:(Some (https ~authenticator))
-          (Eio.Stdenv.net env)
-      in
-      let clock = Eio.Stdenv.clock env and out = Eio.Stdenv.stdout env in
-      Eio.Fiber.List.iter
-        (fun arg ->
-          match video_ids ~client ~key arg with
-          | ids -> Eio.Fiber.List.iter (follow ~clock ~client ~key ~out) ids
-          | exception Youtube_api.Api_error { status; reason; message } ->
-              Eio.traceln "%s: API error %d %s: %s" arg status reason message)
-        args
+  | Some key -> key
+
+(* Follows every live stream the [args] refer to until they end. Must run
+   inside Eio_main.run with the RNG already seeded. *)
+let follow_targets env ~key args =
+  let authenticator = ok_or_fail (Ca_certs.authenticator ()) in
+  let client =
+    Cohttp_eio.Client.make
+      ~https:(Some (https ~authenticator))
+      (Eio.Stdenv.net env)
+  in
+  let clock = Eio.Stdenv.clock env and out = Eio.Stdenv.stdout env in
+  Eio.Fiber.List.iter
+    (fun arg ->
+      match video_ids ~client ~key arg with
+      | ids -> Eio.Fiber.List.iter (follow ~clock ~client ~key ~out) ids
+      | exception Youtube_api.Api_error { status; reason; message } ->
+          Eio.traceln "%s: API error %d %s: %s" arg status reason message)
+    args
+
+let run args =
+  Eio_main.run @@ fun env ->
+  Mirage_crypto_rng_unix.use_default ();
+  follow_targets env ~key:(api_key env) args

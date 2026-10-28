@@ -77,9 +77,9 @@ let normalize_channel c =
 
 let ok_or_fail = function Ok x -> x | Error (`Msg m) -> failwith m
 
-let run channels =
-  Eio_main.run @@ fun env ->
-  Mirage_crypto_rng_unix.use_default ();
+(* Reads [channels] until cancelled, reconnecting as needed. Must run inside
+   Eio_main.run with the RNG already seeded. *)
+let follow env channels =
   let channels = List.map normalize_channel channels in
   let authenticator = ok_or_fail (Ca_certs.authenticator ()) in
   let tls_config = ok_or_fail (Tls.Config.client ~authenticator ()) in
@@ -93,3 +93,8 @@ let run channels =
     forever ()
   in
   forever ()
+
+let run channels =
+  Eio_main.run @@ fun env ->
+  Mirage_crypto_rng_unix.use_default ();
+  follow env channels
