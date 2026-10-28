@@ -67,6 +67,8 @@ let sanitize_spoofing s =
 (* Applied to every printed line, in order. Remove an entry to disable it. *)
 let output_filters = [ sanitize_controls; sanitize_spoofing ]
 
+let apply_filters filters s = List.fold_left (fun s filter -> filter s) s filters
+
 let print_message out (msg : Irc.message) =
   match (msg.command, msg.params) with
   | "PRIVMSG", [ channel; text ] ->
@@ -88,9 +90,7 @@ let print_message out (msg : Irc.message) =
           Printf.sprintf "%s * %s %s" channel name body
         else Printf.sprintf "%s <%s> %s" channel name text
       in
-      let line =
-        List.fold_left (fun l filter -> filter l) line output_filters ^ "\n"
-      in
+      let line = apply_filters output_filters line ^ "\n" in
       Eio.Flow.copy_string line out
   | _ -> ()
 
