@@ -67,7 +67,9 @@ let sanitize_spoofing s =
 (* Applied to every printed line, in order. Remove an entry to disable it. *)
 let output_filters = [ sanitize_controls; sanitize_spoofing ]
 
-let apply_filters filters s = List.fold_left (fun s filter -> filter s) s filters
+(* [(|>)] is exactly fold_left's (accumulator -> element) callback here:
+   the line so far, piped into the next filter. *)
+let apply_filters = List.fold_left ( |> )
 
 let print_message out (msg : Irc.message) =
   match (msg.command, msg.params) with
@@ -90,7 +92,7 @@ let print_message out (msg : Irc.message) =
           Printf.sprintf "%s * %s %s" channel name body
         else Printf.sprintf "%s <%s> %s" channel name text
       in
-      let line = apply_filters output_filters line ^ "\n" in
+      let line = apply_filters line output_filters ^ "\n" in
       Eio.Flow.copy_string line out
   | _ -> ()
 
