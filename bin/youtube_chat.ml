@@ -8,17 +8,37 @@ open Twitch_chat
    faster than this even when the server says we may. *)
 let min_poll_interval = 5.0
 
-(* Accepts a bare video ID, or a youtube.com/watch?v=, youtube.com/live/ or
-   youtu.be/ URL. *)
-let video_id_of_arg arg =
+(* Accepts a channel handle (@name or youtube.com/@name), a bare video ID, or
+   a youtube.com/watch?v=, youtube.com/live/ or youtu.be/ URL. *)
+let target_of_arg arg =
   let uri = Uri.of_string arg in
-  match (Uri.host uri, Uri.get_query_param uri "v") with
-  | None, _ -> arg
-  | Some _, Some v -> v
-  | Some _, None -> (
-      match List.rev (String.split_on_char '/' (Uri.path uri)) with
-      | last :: _ when last <> "" -> last
-      | _ -> arg)
+  let segments =
+    List.filter (( <> ) "") (String.split_on_char '/' (Uri.path uri))
+  in
+  match (Uri.host uri, Uri.get_query_param uri "v", segments) with
+  | None, _, _ when String.starts_with ~prefix:"@" arg -> `Handle arg
+  | None, _, _ -> `Video arg
+  | Some _, Some v, _ -> `Video v
+  | Some _, None, first :: _ when String.starts_with ~prefix:"@" first ->
+      `Handle first
+  | Some _, None, segments -> (
+      match List.rev segments with last :: _ -> `Video last | [] -> `Video arg)
+
+(* The live video IDs an argument refers to; a channel may have several. *)
+let video_ids ~client ~key arg =
+  match target_of_arg arg with
+  | `Video id -> [ id ]
+  | `Handle handle -> (
+      match Youtube_api.channel_id_of_handle client ~key handle with
+      | None ->
+          Eio.traceln "%s: no such channel" handle;
+          []
+      | Some channel_id -> (
+          match Youtube_api.live_video_ids client ~key channel_id with
+          | [] ->
+              Eio.traceln "%s: not live right now" handle;
+              []
+          | ids -> ids))
 
 let print_message out channel (msg : Youtube_api.message) =
   let line = Printf.sprintf "%s <%s> %s" channel msg.author msg.text in
@@ -72,7 +92,7 @@ let () =
   let stderr = Eio.Stdenv.stderr env in
   match (Sys.getenv_opt "YOUTUBE_API_KEY", List.tl (Array.to_list Sys.argv)) with
   | _, [] ->
-      Eio.Flow.copy_string "usage: youtube-chat VIDEO_ID_OR_URL...\n" stderr;
+      Eio.Flow.copy_string "usage: youtube-chat @HANDLE_OR_VIDEO...\n" stderr;
       exit 2
   | (None | Some ""), _ ->
       Eio.Flow.copy_string "youtube-chat: set YOUTUBE_API_KEY\n" stderr;
@@ -86,5 +106,9 @@ let () =
       in
       let clock = Eio.Stdenv.clock env and out = Eio.Stdenv.stdout env in
       Eio.Fiber.List.iter
-        (fun arg -> follow ~clock ~client ~key ~out (video_id_of_arg arg))
+        (fun arg ->
+          match video_ids ~client ~key arg with
+          | ids -> Eio.Fiber.List.iter (follow ~clock ~client ~key ~out) ids
+          | exception Youtube_api.Api_error { status; reason; message } ->
+              Eio.traceln "%s: API error %d %s: %s" arg status reason message)
         args

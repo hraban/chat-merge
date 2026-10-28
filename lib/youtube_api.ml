@@ -60,6 +60,30 @@ let video client ~key id =
         }
   | _ -> None
 
+(* Channel ID for a handle such as "@name", or [None] if there is no such
+   channel. Costs 1 quota unit. *)
+let channel_id_of_handle client ~key handle =
+  let json = get client ~key "channels" [ ("part", "id"); ("forHandle", handle) ] in
+  match find [ "items" ] json with
+  | Some (`List (item :: _)) -> find_string [ "id" ] item
+  | _ -> None
+
+(* IDs of the channel's videos that are live right now. Search results can
+   lag a stream going live by a few minutes. Costs 100 quota units. *)
+let live_video_ids client ~key channel_id =
+  let json =
+    get client ~key "search"
+      [
+        ("part", "id");
+        ("channelId", channel_id);
+        ("eventType", "live");
+        ("type", "video");
+      ]
+  in
+  match find [ "items" ] json with
+  | Some (`List items) -> List.filter_map (find_string [ "id"; "videoId" ]) items
+  | _ -> []
+
 type message = { author : string; text : string }
 
 type page = {
