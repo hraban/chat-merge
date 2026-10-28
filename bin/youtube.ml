@@ -86,18 +86,15 @@ let https ~authenticator =
     in
     Tls_eio.client_of_flow ?host tls_config raw
 
-let () =
+let run args =
   Eio_main.run @@ fun env ->
   Mirage_crypto_rng_unix.use_default ();
-  let stderr = Eio.Stdenv.stderr env in
-  match (Sys.getenv_opt "YOUTUBE_API_KEY", List.tl (Array.to_list Sys.argv)) with
-  | _, [] ->
-      Eio.Flow.copy_string "usage: youtube-chat @HANDLE_OR_VIDEO...\n" stderr;
+  match Sys.getenv_opt "YOUTUBE_API_KEY" with
+  | None | Some "" ->
+      Eio.Flow.copy_string "youtube: set YOUTUBE_API_KEY\n"
+        (Eio.Stdenv.stderr env);
       exit 2
-  | (None | Some ""), _ ->
-      Eio.Flow.copy_string "youtube-chat: set YOUTUBE_API_KEY\n" stderr;
-      exit 2
-  | Some key, args ->
+  | Some key ->
       let authenticator = ok_or_fail (Ca_certs.authenticator ()) in
       let client =
         Cohttp_eio.Client.make
