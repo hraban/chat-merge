@@ -5,21 +5,26 @@ open Twitch_chat
 
 let host = "irc-ws.chat.twitch.tv"
 
-(* Chat text is attacker-controlled: render control characters visibly as
-   \xNN so they can't drive the terminal. Covers C0 controls (incl. ESC), DEL,
-   and C1 controls (U+0080..U+009F, UTF-8 encoded as C2 80..C2 9F), which some
+(* Chat text is attacker-controlled, so printed lines go through these
+   filters. Replaced characters are shown as ⟨U+XXXX⟩, which is hard to
+   confuse with someone literally typing "\x1b". *)
+
+let add_marker b cp = Printf.bprintf b "⟨U+%04X⟩" cp
+
+(* Characters that can drive the terminal: C0 controls (incl. ESC), DEL, and
+   C1 controls (U+0080..U+009F, UTF-8 encoded as C2 80..C2 9F), which some
    terminals also interpret. *)
-let sanitize s =
+let sanitize_controls s =
   let b = Buffer.create (String.length s) in
   let n = String.length s in
   let rec go i =
     if i < n then
       match Char.code s.[i] with
       | c when c < 0x20 || c = 0x7f ->
-          Printf.bprintf b "\\x%02x" c;
+          add_marker b c;
           go (i + 1)
       | 0xc2 when i + 1 < n && Char.code s.[i + 1] land 0xe0 = 0x80 ->
-          Printf.bprintf b "\\u%04x" (Char.code s.[i + 1]);
+          add_marker b (Char.code s.[i + 1]);
           go (i + 2)
       | _ ->
           Buffer.add_char b s.[i];
@@ -27,6 +32,40 @@ let sanitize s =
   in
   go 0;
   Buffer.contents b
+
+(* Characters that can make a message look like something else: line and
+   paragraph separators (fake extra lines) and bidi embeddings, overrides and
+   isolates (reordered text). All are 3-byte UTF-8 sequences starting E2. *)
+let sanitize_spoofing s =
+  let is_spoofing cp =
+    cp = 0x2028 || cp = 0x2029
+    || (cp >= 0x202A && cp <= 0x202E)
+    || (cp >= 0x2066 && cp <= 0x2069)
+  in
+  let b = Buffer.create (String.length s) in
+  let n = String.length s in
+  let rec go i =
+    if i + 2 < n && s.[i] = '\xe2' then
+      let cp =
+        0x2000
+        lor ((Char.code s.[i + 1] land 0x3f) lsl 6)
+        lor (Char.code s.[i + 2] land 0x3f)
+      in
+      if is_spoofing cp then (
+        add_marker b cp;
+        go (i + 3))
+      else (
+        Buffer.add_char b s.[i];
+        go (i + 1))
+    else if i < n then (
+      Buffer.add_char b s.[i];
+      go (i + 1))
+  in
+  go 0;
+  Buffer.contents b
+
+(* Applied to every printed line, in order. Remove an entry to disable it. *)
+let output_filters = [ sanitize_controls; sanitize_spoofing ]
 
 let print_message out (msg : Irc.message) =
   match (msg.command, msg.params) with
@@ -49,7 +88,9 @@ let print_message out (msg : Irc.message) =
           Printf.sprintf "%s * %s %s" channel name body
         else Printf.sprintf "%s <%s> %s" channel name text
       in
-      let line = sanitize line ^ "\n" in
+      let line =
+        List.fold_left (fun l filter -> filter l) line output_filters ^ "\n"
+      in
       Eio.Flow.copy_string line out
   | _ -> ()
 
