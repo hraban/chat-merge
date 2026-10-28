@@ -5,6 +5,29 @@ open Twitch_chat
 
 let host = "irc-ws.chat.twitch.tv"
 
+(* Chat text is attacker-controlled: render control characters visibly as
+   \xNN so they can't drive the terminal. Covers C0 controls (incl. ESC), DEL,
+   and C1 controls (U+0080..U+009F, UTF-8 encoded as C2 80..C2 9F), which some
+   terminals also interpret. *)
+let sanitize s =
+  let b = Buffer.create (String.length s) in
+  let n = String.length s in
+  let rec go i =
+    if i < n then
+      match Char.code s.[i] with
+      | c when c < 0x20 || c = 0x7f ->
+          Printf.bprintf b "\\x%02x" c;
+          go (i + 1)
+      | 0xc2 when i + 1 < n && Char.code s.[i + 1] land 0xe0 = 0x80 ->
+          Printf.bprintf b "\\u%04x" (Char.code s.[i + 1]);
+          go (i + 2)
+      | _ ->
+          Buffer.add_char b s.[i];
+          go (i + 1)
+  in
+  go 0;
+  Buffer.contents b
+
 let print_message out (msg : Irc.message) =
   match (msg.command, msg.params) with
   | "PRIVMSG", [ channel; text ] ->
@@ -23,9 +46,10 @@ let print_message out (msg : Irc.message) =
               String.sub body 0 (String.length body - 1)
             else body
           in
-          Printf.sprintf "%s * %s %s\n" channel name body
-        else Printf.sprintf "%s <%s> %s\n" channel name text
+          Printf.sprintf "%s * %s %s" channel name body
+        else Printf.sprintf "%s <%s> %s" channel name text
       in
+      let line = sanitize line ^ "\n" in
       Eio.Flow.copy_string line out
   | _ -> ()
 
