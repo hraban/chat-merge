@@ -1,6 +1,7 @@
 (executable
  (name main)
  (public_name twitch-chat)
+ (modules main)
  (libraries
   twitch_chat
   eio
@@ -9,4 +10,20 @@
   ca-certs
   domain-name
   mirage-crypto-rng
+  mirage-crypto-rng.unix))
+
+(executable
+ (name youtube_chat)
+ (public_name youtube-chat)
+ (modules youtube_chat)
+ (libraries
+  twitch_chat
+  eio
+  eio_main
+  cohttp-eio
+  uri
+  tls
+  tls-eio
+  ca-certs
+  domain-name
   mirage-crypto-rng.unix))
