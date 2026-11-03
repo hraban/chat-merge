@@ -2,8 +2,6 @@
    official YouTube Data API v3 and prints every chat message to stdout.
    Needs an API key in $YOUTUBE_API_KEY. *)
 
-open Twitch_chat
-
 (* Each poll costs 5 units of the default 10,000/day quota, so never poll
    faster than this even when the server says we may. *)
 let min_poll_interval = 5.0
@@ -112,8 +110,3 @@ let follow_targets env ~key args =
       | exception Youtube_api.Api_error { status; reason; message } ->
           Eio.traceln "%s: API error %d %s: %s" arg status reason message)
     args
-
-let run args =
-  Eio_main.run @@ fun env ->
-  Mirage_crypto_rng_unix.use_default ();
-  follow_targets env ~key:(api_key env) args

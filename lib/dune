@@ -1,3 +1,14 @@
 (library
  (name twitch_chat)
- (libraries eio base64 mirage-crypto-rng cohttp cohttp-eio uri yojson))
+ (libraries
+  eio
+  base64
+  mirage-crypto-rng
+  cohttp
+  cohttp-eio
+  uri
+  yojson
+  tls
+  tls-eio
+  ca-certs
+  domain-name))

@@ -2,6 +2,8 @@
    "chat SUBCOMMAND ARGS..." or a symlink named after a subcommand's alias,
    e.g. "twitch-chat ARGS...". *)
 
+open Twitch_chat
+
 module Command = Core.Command
 
 let twitch =
@@ -9,7 +11,10 @@ let twitch =
     Command.Param.(
       map
         (anon (non_empty_sequence_as_list ("CHANNEL" %: string)))
-        ~f:(fun channels () -> Twitch.run channels))
+        ~f:(fun channels () ->
+          Eio_main.run @@ fun env ->
+          Mirage_crypto_rng_unix.use_default ();
+          Twitch.follow env channels))
 
 let youtube =
   Command.basic ~summary:"Read YouTube live chat via the Data API"
@@ -19,7 +24,10 @@ let youtube =
     Command.Param.(
       map
         (anon (non_empty_sequence_as_list ("TARGET" %: string)))
-        ~f:(fun targets () -> Youtube.run targets))
+        ~f:(fun targets () ->
+          Eio_main.run @@ fun env ->
+          Mirage_crypto_rng_unix.use_default ();
+          Youtube.follow_targets env ~key:(Youtube.api_key env) targets))
 
 let stream =
   Command.basic ~summary:"Interleave Twitch and YouTube chat as it arrives"

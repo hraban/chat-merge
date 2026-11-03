@@ -7,11 +7,4 @@
   core_unix.command_unix
   eio
   eio_main
-  cohttp-eio
-  uri
-  tls
-  tls-eio
-  ca-certs
-  domain-name
-  mirage-crypto-rng
   mirage-crypto-rng.unix))

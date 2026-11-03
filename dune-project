@@ -2,6 +2,8 @@
 
 (name twitch_chat)
 
+(cram enable)
+
 ; (generate_opam_files true)
 
 (package
