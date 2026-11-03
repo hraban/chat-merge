@@ -91,8 +91,3 @@ let follow env channels =
     forever ()
   in
   forever ()
-
-let run channels =
-  Eio_main.run @@ fun env ->
-  Mirage_crypto_rng_unix.use_default ();
-  follow env channels

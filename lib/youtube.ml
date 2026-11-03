@@ -110,8 +110,3 @@ let follow_targets env ~key args =
       | exception Youtube_api.Api_error { status; reason; message } ->
           Eio.traceln "%s: API error %d %s: %s" arg status reason message)
     args
-
-let run args =
-  Eio_main.run @@ fun env ->
-  Mirage_crypto_rng_unix.use_default ();
-  follow_targets env ~key:(api_key env) args
