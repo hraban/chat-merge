@@ -2,6 +2,8 @@
    "chat SUBCOMMAND ARGS..." or a symlink named after a subcommand's alias,
    e.g. "twitch-chat ARGS...". *)
 
+open Twitch_chat
+
 module Command = Core.Command
 
 let twitch =

@@ -2,8 +2,6 @@
    official YouTube Data API v3 and prints every chat message to stdout.
    Needs an API key in $YOUTUBE_API_KEY. *)
 
-open Twitch_chat
-
 (* Each poll costs 5 units of the default 10,000/day quota, so never poll
    faster than this even when the server says we may. *)
 let min_poll_interval = 5.0

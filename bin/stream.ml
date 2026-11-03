@@ -1,6 +1,8 @@
 (* Twitch and YouTube chat interleaved on stdout as messages arrive. Either
    source may be left out. *)
 
+open Twitch_chat
+
 let run ?twitch ?youtube () =
   Eio_main.run @@ fun env ->
   Mirage_crypto_rng_unix.use_default ();

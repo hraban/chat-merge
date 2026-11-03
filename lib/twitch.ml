@@ -1,8 +1,6 @@
 (* Anonymous Twitch chat reader. Connects to Twitch's WebSocket chat endpoint
    as a "justinfan" guest and prints every chat message to stdout. *)
 
-open Twitch_chat
-
 let host = "irc-ws.chat.twitch.tv"
 
 let print_message out (msg : Irc.message) =
