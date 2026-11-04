@@ -30,7 +30,10 @@ let page =
   es.onerror = () => status.textContent = "reconnecting…";
   es.onmessage = (e) => {
     const m = JSON.parse(e.data);
-    const stick = innerHeight + scrollY >= document.body.scrollHeight - 40;
+    // If you want to only stick when already at the bottom:
+    // const stick = innerHeight + scrollY >= document.body.scrollHeight - 40;
+    // Instead, because of OBS lack of scrolling, just always stick:
+    const stick = true;
     const div = document.createElement("div");
     div.className = "m " + m.platform;
     const p = document.createElement("span");
