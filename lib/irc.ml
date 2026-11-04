@@ -3,12 +3,11 @@
 
 open! Core
 
-type message = {
-  tags : (string * string) list;
-  prefix : string option;
-  command : string;
-  params : string list;  (** The trailing parameter, if any, comes last. *)
-}
+type message =
+  { tags: (string * string) list
+  ; prefix: string option
+  ; command: string
+  ; params: string list  (** The trailing parameter, if any, comes last. *) }
 
 let split_once c s =
   match String.lsplit2 s ~on:c with Some pair -> pair | None -> (s, "")
@@ -31,8 +30,9 @@ let split_trailing s =
   in
   match find 0 with
   | Some i ->
-      (String.sub s ~pos:0 ~len:i, [ String.sub s ~pos:(i + 2) ~len:(n - i - 2) ])
-  | None -> (s, [])
+      (String.sub s ~pos:0 ~len:i, [String.sub s ~pos:(i + 2) ~len:(n - i - 2)])
+  | None ->
+      (s, [])
 
 let parse line =
   let tags, rest = take_word_if '@' line in
@@ -41,10 +41,11 @@ let parse line =
   match
     String.split middle ~on:' ' |> List.filter ~f:(Fn.non String.is_empty)
   with
-  | [] -> None
+  | [] ->
+      None
   | command :: params ->
       let tags = Option.value_map tags ~default:[] ~f:parse_tags in
-      Some { tags; prefix; command; params = params @ trailing }
+      Some {tags; prefix; command; params= params @ trailing}
 
 (* "nick!user@host" -> "nick" *)
 let nick msg = Option.map msg.prefix ~f:(fun p -> fst (split_once '!' p))

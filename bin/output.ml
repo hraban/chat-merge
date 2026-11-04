@@ -11,21 +11,20 @@ let with_stdout_sink env produce =
   (* Protected so cancellation never leaves half a line on stdout. *)
   let print m =
     Eio.Cancel.protect (fun () ->
-        Eio.Flow.copy_string (Chat_message.to_line m ^ "\n") out)
+        Eio.Flow.copy_string (Chat_message.to_line m ^ "\n") out )
   in
   Eio.Fiber.first
     (fun () ->
       let rec loop () =
-        print (Eio.Stream.take stream);
+        print (Eio.Stream.take stream) ;
         loop ()
       in
-      loop ())
-    (fun () -> produce stream);
+      loop () )
+    (fun () -> produce stream) ;
   (* Fiber.first cancelled the printer; flush what it hadn't got to yet. *)
   let rec drain () =
     Option.iter (Eio.Stream.take_nonblocking stream) ~f:(fun m ->
-        print m;
-        drain ())
+        print m ; drain () )
   in
   drain ()
 
@@ -40,7 +39,8 @@ let with_web_sink env ~addr ~port produce =
 (* Picks the sink from the --serve flag. *)
 let with_sink env ~serve produce =
   match serve with
-  | None -> with_stdout_sink env produce
+  | None ->
+      with_stdout_sink env produce
   | Some port ->
-      Eio.traceln "serving on http://127.0.0.1:%d/" port;
+      Eio.traceln "serving on http://127.0.0.1:%d/" port ;
       with_web_sink env ~addr:Eio.Net.Ipaddr.V4.loopback ~port produce

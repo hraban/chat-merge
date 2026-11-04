@@ -18,17 +18,16 @@ let sanitize_controls s =
     if i < n then
       match Char.to_int s.[i] with
       | c when c < 0x20 || c = 0x7f ->
-          add_marker b c;
+          add_marker b c ;
           go (i + 1)
       | 0xc2 when i + 1 < n && Char.to_int s.[i + 1] land 0xe0 = 0x80 ->
-          add_marker b (Char.to_int s.[i + 1]);
+          add_marker b (Char.to_int s.[i + 1]) ;
           go (i + 2)
       | _ ->
-          Buffer.add_char b s.[i];
+          Buffer.add_char b s.[i] ;
           go (i + 1)
   in
-  go 0;
-  Buffer.contents b
+  go 0 ; Buffer.contents b
 
 (* Characters that can make a message look like something else: line and
    paragraph separators (fake extra lines) and bidi embeddings, overrides and
@@ -49,20 +48,19 @@ let sanitize_spoofing s =
         lor (Char.to_int s.[i + 2] land 0x3f)
       in
       if is_spoofing cp then (
-        add_marker b cp;
-        go (i + 3))
+        add_marker b cp ;
+        go (i + 3) )
       else (
-        Buffer.add_char b s.[i];
-        go (i + 1))
+        Buffer.add_char b s.[i] ;
+        go (i + 1) )
     else if i < n then (
-      Buffer.add_char b s.[i];
-      go (i + 1))
+      Buffer.add_char b s.[i] ;
+      go (i + 1) )
   in
-  go 0;
-  Buffer.contents b
+  go 0 ; Buffer.contents b
 
 (* Applied to every printed line, in order. Remove an entry to disable it. *)
-let output_filters = [ sanitize_controls; sanitize_spoofing ]
+let output_filters = [sanitize_controls; sanitize_spoofing]
 
 (* [(|>)] is exactly fold_left's (accumulator -> element) callback here:
    the line so far, piped into the next filter. *)
