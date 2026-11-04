@@ -10,28 +10,22 @@
  (name chat_merge)
  (synopsis "Read Twitch chat anonymously over WebSocket")
  (depends
-  (ocaml
-   (>= 5.1))
-  (dune
-   (>= 3.17))
-  (eio
-   (>= 1.0))
-  (eio_main
-   (>= 1.0))
-  (tls-eio
-   (>= 1.0))
-  (ca-certs
-   (>= 1.0))
-  (mirage-crypto-rng
-   (>= 1.1))
-  domain-name
+  ocaml
+  dune
   base64
-  (cohttp-eio
-   (>= 6.0.0))
+  ca-certs
+  cohttp
+  cohttp-eio
+  core
+  core_unix
+  domain-name
+  eio
+  eio_main
+  http
+  mirage-crypto-rng
+  ppx_expect
+  ppx_let
+  tls
+  tls-eio
   uri
-  (yojson
-   (>= 2.0))
-  (core
-   (>= v0.16))
-  (core_unix
-   (>= v0.16))))
+  yojson))
