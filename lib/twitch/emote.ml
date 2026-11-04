@@ -68,7 +68,7 @@ let segments ~text emotes : Chat_merge.Chat_message.segment list =
   let offs = codepoint_offsets text in
   let ncp = Array.length offs - 1 in
   let sub a b = String.sub text ~pos:offs.(a) ~len:(offs.(b) - offs.(a)) in
-  let clean s = Chat_merge.Sanitize.(apply_filters s output_filters) in
+  let clean = Chat_merge.Sanitize.clean in
   let emotes =
     List.filter emotes ~f:(fun e ->
         valid_id e.id && 0 <= e.first && e.first <= e.last && e.last < ncp )

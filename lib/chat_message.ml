@@ -30,7 +30,7 @@ let to_line t =
     | Action ->
         sprintf "* %s %s" t.author t.text
   in
-  Sanitize.(apply_filters line output_filters)
+  Sanitize.clean line
 
 (* The "<author> " / "* author " part that precedes the text, sanitized. *)
 let head t =
@@ -41,12 +41,12 @@ let head t =
     | Action ->
         sprintf "* %s " t.author
   in
-  Sanitize.(apply_filters h output_filters)
+  Sanitize.clean h
 
 (* A message without emotes: all of [text], sanitized. *)
 let plain_segments text =
   if String.is_empty text then []
-  else [Text Sanitize.(apply_filters text output_filters)]
+  else [Text (Sanitize.clean text)]
 
 let%expect_test "to_line sanitizes chat text" =
   print_endline
