@@ -147,7 +147,8 @@ let callback t env _conn (req : Http.Request.t) _body =
                  ; ("connection", "close")
                  ; ( "content-security-policy"
                    , "default-src 'none'; script-src 'unsafe-inline'; \
-                      style-src 'unsafe-inline'; connect-src 'self'" ) ] )
+                      style-src 'unsafe-inline'; connect-src 'self'; \
+                      img-src https://static-cdn.jtvnw.net" ) ] )
             ()
         , fun _ic oc ->
             Eio.Buf_write.string oc page ;
