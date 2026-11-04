@@ -9,12 +9,9 @@ exception Api_error of error
 
 let base_url = "https://www.googleapis.com/youtube/v3/"
 
-let path = Yojson.Safe.Util.path
-
-let find_string p j =
-  Option.bind (path p j) ~f:Yojson.Safe.Util.to_string_option
-
-let get client ~key endpoint params =
+(* Decodes the response with [of_json]. A body that doesn't decode is an
+   [Api_error] like any other. *)
+let get of_json client ~key endpoint params =
   let uri =
     Uri.with_query'
       (Uri.of_string (base_url ^ endpoint))
@@ -24,22 +21,28 @@ let get client ~key endpoint params =
   @@ fun sw ->
   let resp, body = Cohttp_eio.Client.get ~sw client uri in
   let body = Eio.Buf_read.(parse_exn take_all) body ~max_size:(16 lsl 20) in
-  let json =
-    try Yojson.Safe.from_string body with Yojson.Json_error _ -> `Null
-  in
   match Cohttp.Code.code_of_status (Cohttp.Response.status resp) with
-  | 200 ->
-      json
+  | 200 -> (
+    try of_json body
+    with e ->
+      raise (Api_error {status= 200; reason= "decode"; message= Exn.to_string e})
+    )
   | status ->
+      let error =
+        Option.try_with (fun () ->
+            (Api_json.error_response_of_json body).Api_json.error )
+      in
       let reason =
-        match path ["error"; "errors"] json with
-        | Some (`List (e :: _)) ->
-            Option.value (find_string ["reason"] e) ~default:""
+        match error with
+        | Some {Api_json.errors= e :: _; _} ->
+            e.Api_json.reason
         | _ ->
             ""
       in
       let message =
-        Option.value (find_string ["error"; "message"] json) ~default:body
+        Option.value
+          (Option.bind error ~f:(fun (e : Api_json.error_body) -> e.message))
+          ~default:body
       in
       raise (Api_error {status; reason; message})
 
@@ -48,49 +51,39 @@ type video = {channel: string; live_chat_id: string option}
 (* [None] if no video has that ID. [live_chat_id] is [None] unless the video
    is currently live with chat enabled. Costs 1 quota unit. *)
 let video client ~key id =
-  let json =
-    get client ~key "videos"
+  let r =
+    get Api_json.videos_of_json client ~key "videos"
       [("part", "snippet,liveStreamingDetails"); ("id", id)]
   in
-  match path ["items"] json with
-  | Some (`List (item :: _)) ->
-      Some
-        { channel=
-            Option.value
-              (find_string ["snippet"; "channelTitle"] item)
-              ~default:id
-        ; live_chat_id=
-            find_string ["liveStreamingDetails"; "activeLiveChatId"] item }
-  | _ ->
-      None
+  List.hd r.items
+  |> Option.map ~f:(fun (v : Api_json.video) ->
+      { channel= Option.value v.snippet.channel_title ~default:id
+      ; live_chat_id=
+          Option.bind v.live_streaming_details
+            ~f:(fun (d : Api_json.live_streaming_details) ->
+              d.active_live_chat_id ) } )
 
 (* Channel ID for a handle such as "@name", or [None] if there is no such
    channel. Costs 1 quota unit. *)
 let channel_id_of_handle client ~key handle =
-  let json =
-    get client ~key "channels" [("part", "id"); ("forHandle", handle)]
+  let r =
+    get Api_json.channels_of_json client ~key "channels"
+      [("part", "id"); ("forHandle", handle)]
   in
-  match path ["items"] json with
-  | Some (`List (item :: _)) ->
-      find_string ["id"] item
-  | _ ->
-      None
+  List.hd r.items |> Option.map ~f:(fun (c : Api_json.channel) -> c.id)
 
 (* IDs of the channel's videos that are live right now. Search results can
    lag a stream going live by a few minutes. Costs 100 quota units. *)
 let live_video_ids client ~key channel_id =
-  let json =
-    get client ~key "search"
+  let r =
+    get Api_json.search_results_of_json client ~key "search"
       [ ("part", "id")
       ; ("channelId", channel_id)
       ; ("eventType", "live")
       ; ("type", "video") ]
   in
-  match path ["items"] json with
-  | Some (`List items) ->
-      List.filter_map items ~f:(find_string ["id"; "videoId"])
-  | _ ->
-      []
+  List.filter_map r.items ~f:(fun (s : Api_json.search_result) ->
+      s.id.video_id )
 
 type message = {author: string; text: string}
 
@@ -110,29 +103,23 @@ let messages client ~key ~live_chat_id ?page_token () =
     ; ("maxResults", "2000") ]
     @ Option.value_map page_token ~default:[] ~f:(fun t -> [("pageToken", t)])
   in
-  let json = get client ~key "liveChat/messages" params in
-  let items = match path ["items"] json with Some (`List l) -> l | _ -> [] in
-  let message item =
-    match find_string ["snippet"; "type"] item with
-    | Some "textMessageEvent" ->
+  let r =
+    get Api_json.messages_of_json client ~key "liveChat/messages" params
+  in
+  let message (m : Api_json.message) =
+    match m.snippet.kind with
+    | "textMessageEvent" ->
         Some
           { author=
               Option.value
-                (find_string ["authorDetails"; "displayName"] item)
+                (Option.bind m.author_details
+                   ~f:(fun (a : Api_json.author_details) -> a.display_name ) )
                 ~default:"?"
-          ; text=
-              Option.value
-                (find_string ["snippet"; "displayMessage"] item)
-                ~default:"" }
+          ; text= m.snippet.display_message }
     | _ ->
         None
   in
-  { messages= List.filter_map items ~f:message
-  ; next_page_token= find_string ["nextPageToken"] json
-  ; polling_interval=
-      ( match path ["pollingIntervalMillis"] json with
-      | Some (`Int ms) ->
-          Float.of_int ms /. 1000.
-      | _ ->
-          5. )
-  ; offline= Option.is_some (path ["offlineAt"] json) }
+  { messages= List.filter_map r.items ~f:message
+  ; next_page_token= r.next_page_token
+  ; polling_interval= Float.of_int r.polling_interval_millis /. 1000.
+  ; offline= Option.is_some r.offline_at }

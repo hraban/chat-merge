@@ -15,3 +15,9 @@
  (inline_tests)
  (preprocess
   (pps ppx_expect)))
+
+(rule
+ (targets api_json.ml api_json.mli)
+ (deps api_json.atd)
+ (action
+  (run atdml %{deps})))

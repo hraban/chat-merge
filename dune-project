@@ -28,4 +28,5 @@
   tls
   tls-eio
   uri
-  yojson))
+  yojson
+  atdml))

@@ -1,0 +1,75 @@
+(* The fields of YouTube Data API v3 responses that Api reads. Unknown fields
+   are ignored. *)
+
+type error_item = {
+  ~reason : string;
+}
+
+type error_body = {
+  ~errors : error_item list;
+  ?message : string option;
+}
+
+type error_response = {
+  error : error_body;
+}
+
+type video_snippet = {
+  ?channel_title <json name="channelTitle"> : string option;
+}
+
+type live_streaming_details = {
+  ?active_live_chat_id <json name="activeLiveChatId"> : string option;
+}
+
+type video = {
+  snippet : video_snippet;
+  ?live_streaming_details <json name="liveStreamingDetails">
+    : live_streaming_details option;
+}
+
+type videos = {
+  ~items : video list;
+}
+
+type channel = {
+  id : string;
+}
+
+type channels = {
+  ~items : channel list;
+}
+
+type search_id = {
+  ?video_id <json name="videoId"> : string option;
+}
+
+type search_result = {
+  id : search_id;
+}
+
+type search_results = {
+  ~items : search_result list;
+}
+
+type message_snippet = {
+  ~kind <json name="type"> : string;
+  ~display_message <json name="displayMessage"> : string;
+}
+
+type author_details = {
+  ?display_name <json name="displayName"> : string option;
+}
+
+type message = {
+  snippet : message_snippet;
+  ?author_details <json name="authorDetails"> : author_details option;
+}
+
+type messages = {
+  ~items : message list;
+  ?next_page_token <json name="nextPageToken"> : string option;
+  ~polling_interval_millis <json name="pollingIntervalMillis">
+    <ocaml default="5000"> : int;
+  ?offline_at <json name="offlineAt"> : string option;
+}
