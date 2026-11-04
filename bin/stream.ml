@@ -2,7 +2,6 @@
    source may be left out. *)
 
 open! Core
-open Twitch_chat
 
 let run ~serve ~bind ?twitch ?youtube () =
   Eio_main.run
@@ -14,7 +13,7 @@ let run ~serve ~bind ?twitch ?youtube () =
     exit 2 ) ;
   (* Check for the key up front, not after Twitch output has started. *)
   let youtube =
-    Option.map youtube ~f:(fun target -> (Youtube.api_key env, target))
+    Option.map youtube ~f:(fun target -> (Youtube.Client.api_key env, target))
   in
   Output.with_sink env ~serve ~bind
   @@ fun stream ->
@@ -24,4 +23,4 @@ let run ~serve ~bind ?twitch ?youtube () =
           Twitch.Client.follow env ~stream [channel] ) )
     (fun () ->
       Option.iter youtube ~f:(fun (key, target) ->
-          Youtube.follow_targets env ~key ~stream [target] ) )
+          Youtube.Client.follow_targets env ~key ~stream [target] ) )

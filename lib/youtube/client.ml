@@ -39,32 +39,32 @@ let video_ids ~client ~key arg =
   | `Video id ->
       [id]
   | `Handle handle -> (
-    match Youtube_api.channel_id_of_handle client ~key handle with
+    match Api.channel_id_of_handle client ~key handle with
     | None ->
         Eio.traceln "%s: no such channel" handle ;
         []
     | Some channel_id -> (
-      match Youtube_api.live_video_ids client ~key channel_id with
+      match Api.live_video_ids client ~key channel_id with
       | [] ->
           Eio.traceln "%s: not live right now" handle ;
           []
       | ids ->
           ids ) )
 
-let add_message stream channel (msg : Youtube_api.message) =
+let add_message stream channel (msg : Api.message) =
   Eio.Stream.add stream
-    { Chat_message.platform= Youtube
+    { Twitch_chat.Chat_message.platform= Youtube
     ; channel
     ; author= msg.author
     ; text= msg.text
     ; kind= Say
-    ; segments= Chat_message.plain_segments msg.text }
+    ; segments= Twitch_chat.Chat_message.plain_segments msg.text }
 
 (* Follows one stream's chat until it ends. Network and server (5xx) errors
    are retried with the same page token; client (4xx) errors give up. *)
 let follow ~clock ~client ~key ~stream video_id =
   let rec poll ~channel ~live_chat_id page_token =
-    match Youtube_api.messages client ~key ~live_chat_id ?page_token () with
+    match Api.messages client ~key ~live_chat_id ?page_token () with
     | page ->
         List.iter page.messages ~f:(add_message stream channel) ;
         if page.offline then Eio.traceln "%s: stream ended" channel
@@ -72,7 +72,7 @@ let follow ~clock ~client ~key ~stream video_id =
           Eio.Time.sleep clock
             (Float.max min_poll_interval page.polling_interval) ;
           poll ~channel ~live_chat_id page.next_page_token )
-    | exception (Youtube_api.Api_error {status; _} as e) when status < 500 ->
+    | exception (Api.Api_error {status; _} as e) when status < 500 ->
         raise e
     | exception (Eio.Cancel.Cancelled _ as e) ->
         raise e
@@ -83,14 +83,14 @@ let follow ~clock ~client ~key ~stream video_id =
         poll ~channel ~live_chat_id page_token
   in
   try
-    match Youtube_api.video client ~key video_id with
+    match Api.video client ~key video_id with
     | None ->
         Eio.traceln "%s: no such video" video_id
     | Some {live_chat_id= None; _} ->
         Eio.traceln "%s: not live, or chat is disabled" video_id
     | Some {channel; live_chat_id= Some live_chat_id} ->
         poll ~channel ~live_chat_id None
-  with Youtube_api.Api_error {status; reason; message} ->
+  with Api.Api_error {status; reason; message} ->
     Eio.traceln "%s: API error %d %s: %s" video_id status reason message
 
 let ok_or_fail = function Ok x -> x | Error (`Msg m) -> failwith m
@@ -130,6 +130,6 @@ let follow_targets env ~key ~stream args =
       match video_ids ~client ~key arg with
       | ids ->
           Eio.Fiber.List.iter (follow ~clock ~client ~key ~stream) ids
-      | exception Youtube_api.Api_error {status; reason; message} ->
+      | exception Api.Api_error {status; reason; message} ->
           Eio.traceln "%s: API error %d %s: %s" arg status reason message )
     args

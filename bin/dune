@@ -4,6 +4,7 @@
  (libraries
   twitch_chat
   twitch
+  youtube
   core
   core_unix.command_unix
   eio

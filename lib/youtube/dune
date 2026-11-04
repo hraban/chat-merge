@@ -1,0 +1,18 @@
+(library
+ (name youtube)
+ (libraries
+  twitch_chat
+  core
+  eio
+  cohttp
+  cohttp-eio
+  http
+  uri
+  yojson
+  tls
+  tls-eio
+  ca-certs
+  domain-name)
+ (inline_tests)
+ (preprocess
+  (pps ppx_expect)))
