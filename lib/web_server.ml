@@ -18,6 +18,7 @@ let page =
   .m { padding: 1px 0; overflow-wrap: anywhere; }
   .twitch .p { color: #9146ff; }
   .youtube .p { color: #e00; }
+  .m img { height: 1.4em; vertical-align: middle; }
   #s { position: fixed; top: 4px; right: 8px; opacity: .6; font-size: 12px; }
 </style>
 <div id="s">connecting…</div>
@@ -39,7 +40,17 @@ let page =
     const p = document.createElement("span");
     p.className = "p";
     p.textContent = "● ";
-    div.append(p, m.line); // textContent semantics: never parsed as HTML
+    // Text goes in as text nodes, never parsed as HTML. Emote ids are
+    // restricted to [A-Za-z0-9_] by the server.
+    div.append(p, m.head);
+    for (const s of m.segments) {
+      if (s.emote === undefined) { div.append(s.text); continue; }
+      const img = document.createElement("img");
+      img.src = "https://static-cdn.jtvnw.net/emoticons/v2/" +
+        encodeURIComponent(s.emote) + "/default/dark/1.0";
+      img.alt = img.title = s.text;
+      div.append(img);
+    }
     log.append(div);
     while (log.childElementCount > 1000) log.firstChild.remove();
     if (stick) scrollTo(0, document.body.scrollHeight);
@@ -53,14 +64,22 @@ let platform_name : Chat_message.platform -> string = function
   | Youtube ->
       "youtube"
 
-(* The SSE event for one message. [to_line] already sanitizes, and the page
-   only ever inserts [line] as text. *)
+(* The SSE event for one message. [head] and [segments] already sanitize, and
+   the page only ever inserts their text as text. *)
 let event_of_message (m : Chat_message.t) =
   let json =
     Yojson.Safe.to_string
       (`Assoc
          [ ("platform", `String (platform_name m.platform))
-         ; ("line", `String (Chat_message.to_line m)) ] )
+         ; ("head", `String (Chat_message.head m))
+         ; ( "segments"
+           , `List
+               (List.map (Chat_message.segments m) ~f:(function
+                 | Text text ->
+                     `Assoc [("text", `String text)]
+                 | Emote {id; name} ->
+                     `Assoc [("emote", `String id); ("text", `String name)] ))
+           ) ] )
   in
   sprintf "data: %s\n\n" json
 
@@ -71,12 +90,10 @@ let%expect_test "event_of_message" =
        ; channel= "#c"
        ; author= "a"
        ; text= "<script>\"hi\""
-       ; kind= Say } ) ;
+       ; kind= Say
+       ; emotes= [{id= "25"; first= 0; last= 0}] } ) ;
   [%expect
-    {|
-    data: {"platform":"twitch","line":"#c <a> <script>\"hi\""}
-
-    |}]
+    {| data: {"platform":"twitch","head":"<a> ","segments":[{"emote":"25","text":"<"},{"text":"script>\"hi\""}]} |}]
 
 (* One queue per connected browser, so a slow visitor can't hold up the rest. *)
 type t = {mutable clients: string Eio.Stream.t list}

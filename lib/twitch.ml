@@ -5,6 +5,27 @@ open! Core
 
 let host = "irc-ws.chat.twitch.tv"
 
+(* "25:0-4,12-16/1902:6-10" -> emote occurrences. [shift] is added to every
+   index (the text may have lost a prefix). Malformed entries are dropped. *)
+let parse_emotes ~shift tag : Chat_message.emote list =
+  String.split tag ~on:'/'
+  |> List.concat_map ~f:(fun entry ->
+      match String.lsplit2 entry ~on:':' with
+      | None ->
+          []
+      | Some (id, ranges) ->
+          String.split ranges ~on:','
+          |> List.filter_map ~f:(fun r ->
+              match String.lsplit2 r ~on:'-' with
+              | Some (a, b) -> (
+                match (Int.of_string_opt a, Int.of_string_opt b) with
+                | Some a, Some b ->
+                    Some {Chat_message.id; first= a - shift; last= b - shift}
+                | _ ->
+                    None )
+              | None ->
+                  None ) )
+
 (* The chat message an IRC line carries, if it is one. *)
 let message_of_irc (msg : Irc.message) : Chat_message.t option =
   match (msg.command, msg.params) with
@@ -16,14 +37,24 @@ let message_of_irc (msg : Irc.message) : Chat_message.t option =
         | _ ->
             Option.value (Irc.nick msg) ~default:"?"
       in
-      let kind, text =
-        (* /me messages arrive as CTCP ACTION. *)
+      let kind, shift, text =
+        (* /me messages arrive as CTCP ACTION. The emote indices count from
+           the start of the whole trailing parameter. *)
         if String.is_prefix text ~prefix:"\001ACTION " then
           let body = String.drop_prefix text 8 in
-          (Chat_message.Action, String.chop_suffix_if_exists body ~suffix:"\001")
-        else (Say, text)
+          ( Chat_message.Action
+          , 8
+          , String.chop_suffix_if_exists body ~suffix:"\001" )
+        else (Say, 0, text)
       in
-      Some {platform= Twitch; channel; author; text; kind}
+      let emotes =
+        match List.Assoc.find msg.tags ~equal:String.equal "emotes" with
+        | Some tag ->
+            parse_emotes ~shift tag
+        | None ->
+            []
+      in
+      Some {platform= Twitch; channel; author; text; kind; emotes}
   | _ ->
       None
 
@@ -40,14 +71,31 @@ let%expect_test "message_of_irc" =
           print_endline (Chat_message.to_line m) )
   in
   show "@display-name=Foo :foo!foo@foo.tmi.twitch.tv PRIVMSG #chan :hi there" ;
-  [%expect {| #chan <Foo> hi there |}] ;
+  [%expect {| <Foo> hi there |}] ;
   (* Empty display-name falls back to the nick. *)
   show "@display-name= :foo!foo@foo.tmi.twitch.tv PRIVMSG #chan :hi" ;
-  [%expect {| #chan <foo> hi |}] ;
+  [%expect {| <foo> hi |}] ;
   show ":foo!foo@foo.tmi.twitch.tv PRIVMSG #chan :\001ACTION waves\001" ;
-  [%expect {| #chan * foo waves |}] ;
+  [%expect {| * foo waves |}] ;
   show ":tmi.twitch.tv 001 justinfan123 :Welcome, GLHF!" ;
   [%expect {| (no message) |}]
+
+let%expect_test "parse_emotes" =
+  let show ~shift tag =
+    parse_emotes ~shift tag
+    |> List.iter ~f:(fun {Chat_message.id; first; last} ->
+        printf "%s %d-%d\n" id first last )
+  in
+  show ~shift:0 "25:0-4,12-16/1902:6-10" ;
+  [%expect {|
+    25 0-4
+    25 12-16
+    1902 6-10
+    |}] ;
+  show ~shift:8 "25:8-12/bogus/x:a-b" ;
+  [%expect {| 25 0-4 |}] ;
+  show ~shift:0 "" ;
+  [%expect {||}]
 
 let handle_line ws stream line =
   let line = String.chop_suffix_if_exists line ~suffix:"\r" in

@@ -57,7 +57,8 @@ let add_message stream channel (msg : Youtube_api.message) =
     ; channel
     ; author= msg.author
     ; text= msg.text
-    ; kind= Say }
+    ; kind= Say
+    ; emotes= [] }
 
 (* Follows one stream's chat until it ends. Network and server (5xx) errors
    are retried with the same page token; client (4xx) errors give up. *)
