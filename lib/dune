@@ -1,19 +1,6 @@
 (library
  (name chat_merge)
- (libraries
-  core
-  eio
-  base64
-  mirage-crypto-rng
-  cohttp
-  cohttp-eio
-  http
-  uri
-  yojson
-  tls
-  tls-eio
-  ca-certs
-  domain-name)
+ (libraries core eio cohttp-eio http uri yojson)
  (inline_tests)
  (preprocess
   (pps ppx_expect)))

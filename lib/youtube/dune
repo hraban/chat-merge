@@ -6,7 +6,6 @@
   eio
   cohttp
   cohttp-eio
-  http
   uri
   yojson
   tls
