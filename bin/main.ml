@@ -4,30 +4,22 @@
 
 open! Core
 
-let serve_flag =
-  Command.Param.(
-    flag "--serve" (optional int)
-      ~doc:"PORT serve messages as a web page instead of printing" )
-
-let bind_flag =
-  Command.Param.(
-    flag "--bind"
-      (optional_with_default "127.0.0.1" string)
-      ~doc:"ADDR address for --serve to listen on (default 127.0.0.1)" )
-
 let stream =
   Command.basic ~summary:"Interleave Twitch and YouTube chat as it arrives"
-    Command.Param.(
-      map
-        (both serve_flag
-           (both bind_flag
-              (both
-                 (flag "--twitch" (optional string)
-                    ~doc:"CHANNEL Twitch channel to read" )
-                 (flag "--youtube" (optional string)
-                    ~doc:"TARGET YouTube @handle, video ID or URL" ) ) ) )
-        ~f:(fun (serve, (bind, (twitch, youtube))) () ->
-          Stream.run ~serve ~bind ?twitch ?youtube () ) )
+    (let%map_open.Command serve =
+       flag "--serve" (optional int)
+         ~doc:"PORT serve messages as a web page instead of printing"
+     and bind =
+       flag "--bind"
+         (optional_with_default "127.0.0.1" string)
+         ~doc:"ADDR address for --serve to listen on (default 127.0.0.1)"
+     and twitch =
+       flag "--twitch" (optional string) ~doc:"CHANNEL Twitch channel to read"
+     and youtube =
+       flag "--youtube" (optional string)
+         ~doc:"TARGET YouTube @handle, video ID or URL"
+     in
+     fun () -> Stream.run ~serve ~bind ?twitch ?youtube () )
 
 (* Subcommand name, with the program name that runs it directly. *)
 let commands = [("stream", "stream-chat", stream)]

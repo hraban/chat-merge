@@ -9,4 +9,6 @@
   core_unix.command_unix
   eio
   eio_main
-  mirage-crypto-rng.unix))
+  mirage-crypto-rng.unix)
+ (preprocess
+  (pps ppx_let)))
