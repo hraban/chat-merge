@@ -9,20 +9,10 @@ exception Api_error of error
 
 let base_url = "https://www.googleapis.com/youtube/v3/"
 
-(* Optional lookup through nested objects; [None] on any missing step. *)
-let rec find path json =
-  match (path, json) with
-  | [], j ->
-      Some j
-  | key :: rest, `Assoc fields ->
-      Option.bind
-        (List.Assoc.find fields ~equal:String.equal key)
-        ~f:(find rest)
-  | _ ->
-      None
+let path = Yojson.Safe.Util.path
 
-let find_string path json =
-  match find path json with Some (`String s) -> Some s | _ -> None
+let find_string p j =
+  Option.bind (path p j) ~f:Yojson.Safe.Util.to_string_option
 
 let get client ~key endpoint params =
   let uri =
@@ -42,7 +32,7 @@ let get client ~key endpoint params =
       json
   | status ->
       let reason =
-        match find ["error"; "errors"] json with
+        match path ["error"; "errors"] json with
         | Some (`List (e :: _)) ->
             Option.value (find_string ["reason"] e) ~default:""
         | _ ->
@@ -62,7 +52,7 @@ let video client ~key id =
     get client ~key "videos"
       [("part", "snippet,liveStreamingDetails"); ("id", id)]
   in
-  match find ["items"] json with
+  match path ["items"] json with
   | Some (`List (item :: _)) ->
       Some
         { channel=
@@ -80,7 +70,7 @@ let channel_id_of_handle client ~key handle =
   let json =
     get client ~key "channels" [("part", "id"); ("forHandle", handle)]
   in
-  match find ["items"] json with
+  match path ["items"] json with
   | Some (`List (item :: _)) ->
       find_string ["id"] item
   | _ ->
@@ -96,7 +86,7 @@ let live_video_ids client ~key channel_id =
       ; ("eventType", "live")
       ; ("type", "video") ]
   in
-  match find ["items"] json with
+  match path ["items"] json with
   | Some (`List items) ->
       List.filter_map items ~f:(find_string ["id"; "videoId"])
   | _ ->
@@ -121,7 +111,7 @@ let messages client ~key ~live_chat_id ?page_token () =
     @ Option.value_map page_token ~default:[] ~f:(fun t -> [("pageToken", t)])
   in
   let json = get client ~key "liveChat/messages" params in
-  let items = match find ["items"] json with Some (`List l) -> l | _ -> [] in
+  let items = match path ["items"] json with Some (`List l) -> l | _ -> [] in
   let message item =
     match find_string ["snippet"; "type"] item with
     | Some "textMessageEvent" ->
@@ -140,9 +130,9 @@ let messages client ~key ~live_chat_id ?page_token () =
   { messages= List.filter_map items ~f:message
   ; next_page_token= find_string ["nextPageToken"] json
   ; polling_interval=
-      ( match find ["pollingIntervalMillis"] json with
+      ( match path ["pollingIntervalMillis"] json with
       | Some (`Int ms) ->
           Float.of_int ms /. 1000.
       | _ ->
           5. )
-  ; offline= Option.is_some (find ["offlineAt"] json) }
+  ; offline= Option.is_some (path ["offlineAt"] json) }
