@@ -28,3 +28,19 @@ let with_stdout_sink env produce =
         drain ())
   in
   drain ()
+
+(* Like [with_stdout_sink], but serves the messages to browsers on
+   [addr]:[port] instead; runs until [produce] returns. *)
+let with_web_sink env ~addr ~port produce =
+  let stream = Eio.Stream.create 1024 in
+  Eio.Fiber.first
+    (fun () -> Web_server.run env ~addr ~port ~stream)
+    (fun () -> produce stream)
+
+(* Picks the sink from the --serve flag. *)
+let with_sink env ~serve produce =
+  match serve with
+  | None -> with_stdout_sink env produce
+  | Some port ->
+      Eio.traceln "serving on http://127.0.0.1:%d/" port;
+      with_web_sink env ~addr:Eio.Net.Ipaddr.V4.loopback ~port produce

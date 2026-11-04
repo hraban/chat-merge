@@ -7,6 +7,7 @@
   mirage-crypto-rng
   cohttp
   cohttp-eio
+  http
   uri
   yojson
   tls

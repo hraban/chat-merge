@@ -5,15 +5,20 @@
 open! Core
 open Twitch_chat
 
+let serve_flag =
+  Command.Param.(
+    flag "--serve" (optional int)
+      ~doc:"PORT serve messages as a web page on 127.0.0.1:PORT instead of printing")
+
 let twitch =
   Command.basic ~summary:"Read Twitch chat anonymously"
     Command.Param.(
       map
-        (anon (non_empty_sequence_as_list ("CHANNEL" %: string)))
-        ~f:(fun channels () ->
+        (both serve_flag (anon (non_empty_sequence_as_list ("CHANNEL" %: string))))
+        ~f:(fun (serve, channels) () ->
           Eio_main.run @@ fun env ->
           Mirage_crypto_rng_unix.use_default ();
-          Output.with_stdout_sink env (fun stream ->
+          Output.with_sink env ~serve (fun stream ->
               Twitch.follow env ~stream channels)))
 
 let youtube =
@@ -23,23 +28,23 @@ let youtube =
        Needs an API key in $YOUTUBE_API_KEY.")
     Command.Param.(
       map
-        (anon (non_empty_sequence_as_list ("TARGET" %: string)))
-        ~f:(fun targets () ->
+        (both serve_flag (anon (non_empty_sequence_as_list ("TARGET" %: string))))
+        ~f:(fun (serve, targets) () ->
           Eio_main.run @@ fun env ->
           Mirage_crypto_rng_unix.use_default ();
           let key = Youtube.api_key env in
-          Output.with_stdout_sink env (fun stream ->
+          Output.with_sink env ~serve (fun stream ->
               Youtube.follow_targets env ~key ~stream targets)))
 
 let stream =
   Command.basic ~summary:"Interleave Twitch and YouTube chat as it arrives"
     Command.Param.(
       map
-        (both
+        (both serve_flag (both
            (flag "--twitch" (optional string) ~doc:"CHANNEL Twitch channel to read")
            (flag "--youtube" (optional string)
-              ~doc:"TARGET YouTube @handle, video ID or URL"))
-        ~f:(fun (twitch, youtube) () -> Stream.run ?twitch ?youtube ()))
+              ~doc:"TARGET YouTube @handle, video ID or URL")))
+        ~f:(fun (serve, (twitch, youtube)) () -> Stream.run ~serve ?twitch ?youtube ()))
 
 (* Subcommand name, with the program name that runs it directly. *)
 let commands =
