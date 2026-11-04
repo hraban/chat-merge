@@ -33,7 +33,8 @@ let message_of_irc (msg : Irc.message) : Chat_message.t option =
         | None ->
             []
       in
-      Some {platform= Twitch; channel; author; text; kind; emotes}
+      let segments = Emote.segments ~text emotes in
+      Some {platform= Twitch; channel; author; text; kind; segments}
   | _ ->
       None
 

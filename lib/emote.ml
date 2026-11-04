@@ -7,8 +7,6 @@ open! Core
    into the message text. *)
 type t = {id: string; first: int; last: int}
 
-type segment = Text of string | Emote of {id: string; name: string}
-
 (* "25:0-4,12-16/1902:6-10" (the IRC [emotes] tag) -> occurrences. [shift] is
    subtracted from every index (the text may have lost a prefix). Malformed
    entries are dropped. *)
@@ -65,7 +63,8 @@ let codepoint_offsets s =
 
 (* [text] split into plain runs and emotes, all sanitized. Emotes that are
    malformed, out of range or overlapping are left as plain text. *)
-let segments ~text emotes =
+let segments ~text emotes : Chat_message.segment list =
+  let open Chat_message in
   let offs = codepoint_offsets text in
   let ncp = Array.length offs - 1 in
   let sub a b = String.sub text ~pos:offs.(a) ~len:(offs.(b) - offs.(a)) in
@@ -91,7 +90,7 @@ let segments ~text emotes =
 let%expect_test "segments" =
   let show text emotes =
     List.iter (segments ~text emotes) ~f:(function
-      | Text s ->
+      | Chat_message.Text s ->
           printf "text %S\n" s
       | Emote {id; name} ->
           printf "emote %s %S\n" id name )

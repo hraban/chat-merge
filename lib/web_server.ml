@@ -74,10 +74,10 @@ let event_of_message (m : Chat_message.t) =
          ; ("head", `String (Chat_message.head m))
          ; ( "segments"
            , `List
-               (List.map (Chat_message.segments m) ~f:(function
-                 | Emote.Text text ->
+               (List.map m.segments ~f:(function
+                 | Chat_message.Text text ->
                      `Assoc [("text", `String text)]
-                 | Emote.Emote {id; name} ->
+                 | Chat_message.Emote {id; name} ->
                      `Assoc [("emote", `String id); ("text", `String name)] ))
            ) ] )
   in
@@ -91,7 +91,7 @@ let%expect_test "event_of_message" =
        ; author= "a"
        ; text= "<script>\"hi\""
        ; kind= Say
-       ; emotes= [{Emote.id= "25"; first= 0; last= 0}] } ) ;
+       ; segments= [Emote {id= "25"; name= "<"}; Text "script>\"hi\""] } ) ;
   [%expect
     {| data: {"platform":"twitch","head":"<a> ","segments":[{"emote":"25","text":"<"},{"text":"script>\"hi\""}]} |}]
 
