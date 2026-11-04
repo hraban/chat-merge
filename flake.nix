@@ -30,6 +30,8 @@
           src = ./.;
           nativeBuildInputs = with pkgs; [
             pkg-config
+          ] ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
+            pkgconf
           ];
           buildInputs = with pkgs; [
             gmp
