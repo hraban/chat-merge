@@ -22,15 +22,9 @@ let take_word_if sigil s =
   else (None, s)
 
 let split_trailing s =
-  let n = String.length s in
-  let rec find i =
-    if i + 1 >= n then None
-    else if Char.equal s.[i] ' ' && Char.equal s.[i + 1] ':' then Some i
-    else find (i + 1)
-  in
-  match find 0 with
+  match String.substr_index s ~pattern:" :" with
   | Some i ->
-      (String.sub s ~pos:0 ~len:i, [String.sub s ~pos:(i + 2) ~len:(n - i - 2)])
+      (String.prefix s i, [String.drop_prefix s (i + 2)])
   | None ->
       (s, [])
 
