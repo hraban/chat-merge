@@ -5,27 +5,6 @@ open! Core
 
 let host = "irc-ws.chat.twitch.tv"
 
-(* "25:0-4,12-16/1902:6-10" -> emote occurrences. [shift] is added to every
-   index (the text may have lost a prefix). Malformed entries are dropped. *)
-let parse_emotes ~shift tag : Chat_message.emote list =
-  String.split tag ~on:'/'
-  |> List.concat_map ~f:(fun entry ->
-      match String.lsplit2 entry ~on:':' with
-      | None ->
-          []
-      | Some (id, ranges) ->
-          String.split ranges ~on:','
-          |> List.filter_map ~f:(fun r ->
-              match String.lsplit2 r ~on:'-' with
-              | Some (a, b) -> (
-                match (Int.of_string_opt a, Int.of_string_opt b) with
-                | Some a, Some b ->
-                    Some {Chat_message.id; first= a - shift; last= b - shift}
-                | _ ->
-                    None )
-              | None ->
-                  None ) )
-
 (* The chat message an IRC line carries, if it is one. *)
 let message_of_irc (msg : Irc.message) : Chat_message.t option =
   match (msg.command, msg.params) with
@@ -50,7 +29,7 @@ let message_of_irc (msg : Irc.message) : Chat_message.t option =
       let emotes =
         match List.Assoc.find msg.tags ~equal:String.equal "emotes" with
         | Some tag ->
-            parse_emotes ~shift tag
+            Emote.parse_tag ~shift tag
         | None ->
             []
       in
@@ -79,23 +58,6 @@ let%expect_test "message_of_irc" =
   [%expect {| * foo waves |}] ;
   show ":tmi.twitch.tv 001 justinfan123 :Welcome, GLHF!" ;
   [%expect {| (no message) |}]
-
-let%expect_test "parse_emotes" =
-  let show ~shift tag =
-    parse_emotes ~shift tag
-    |> List.iter ~f:(fun {Chat_message.id; first; last} ->
-        printf "%s %d-%d\n" id first last )
-  in
-  show ~shift:0 "25:0-4,12-16/1902:6-10" ;
-  [%expect {|
-    25 0-4
-    25 12-16
-    1902 6-10
-    |}] ;
-  show ~shift:8 "25:8-12/bogus/x:a-b" ;
-  [%expect {| 25 0-4 |}] ;
-  show ~shift:0 "" ;
-  [%expect {||}]
 
 let handle_line ws stream line =
   let line = String.chop_suffix_if_exists line ~suffix:"\r" in

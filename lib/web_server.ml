@@ -75,9 +75,9 @@ let event_of_message (m : Chat_message.t) =
          ; ( "segments"
            , `List
                (List.map (Chat_message.segments m) ~f:(function
-                 | Text text ->
+                 | Emote.Text text ->
                      `Assoc [("text", `String text)]
-                 | Emote {id; name} ->
+                 | Emote.Emote {id; name} ->
                      `Assoc [("emote", `String id); ("text", `String name)] ))
            ) ] )
   in
@@ -91,7 +91,7 @@ let%expect_test "event_of_message" =
        ; author= "a"
        ; text= "<script>\"hi\""
        ; kind= Say
-       ; emotes= [{id= "25"; first= 0; last= 0}] } ) ;
+       ; emotes= [{Emote.id= "25"; first= 0; last= 0}] } ) ;
   [%expect
     {| data: {"platform":"twitch","head":"<a> ","segments":[{"emote":"25","text":"<"},{"text":"script>\"hi\""}]} |}]
 
@@ -147,8 +147,8 @@ let callback t env _conn (req : Http.Request.t) _body =
                  ; ("connection", "close")
                  ; ( "content-security-policy"
                    , "default-src 'none'; script-src 'unsafe-inline'; \
-                      style-src 'unsafe-inline'; connect-src 'self'; \
-                      img-src https://static-cdn.jtvnw.net" ) ] )
+                      style-src 'unsafe-inline'; connect-src 'self'; img-src \
+                      https://static-cdn.jtvnw.net" ) ] )
             ()
         , fun _ic oc ->
             Eio.Buf_write.string oc page ;
