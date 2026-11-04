@@ -11,7 +11,12 @@ let with_stdout_sink env produce =
   (* Protected so cancellation never leaves half a line on stdout. *)
   let print m =
     Eio.Cancel.protect (fun () ->
-        Eio.Flow.copy_string (Chat_message.to_line m ^ "\n") out )
+        let channel =
+          match m.Chat_message.platform with Twitch -> "T" | Youtube -> "Y"
+        in
+        Eio.Buf_write.with_flow out
+        @@ fun w ->
+        Eio.Buf_write.printf w "%s %s\n" channel (Chat_message.to_line m) )
   in
   Eio.Fiber.first
     (fun () ->

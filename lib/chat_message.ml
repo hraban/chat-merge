@@ -21,9 +21,9 @@ let to_line t =
   let line =
     match t.kind with
     | Say ->
-        sprintf "%s <%s> %s" t.channel t.author t.text
+        sprintf "<%s> %s" t.author t.text
     | Action ->
-        sprintf "%s * %s %s" t.channel t.author t.text
+        sprintf "* %s %s" t.author t.text
   in
   Sanitize.(apply_filters line output_filters)
 
