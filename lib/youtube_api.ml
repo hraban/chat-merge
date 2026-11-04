@@ -1,6 +1,8 @@
 (* The parts of the official YouTube Data API v3 needed to follow a live chat.
    https://developers.google.com/youtube/v3/live/docs/liveChatMessages *)
 
+open! Core
+
 type error = { status : int; reason : string; message : string }
 
 exception Api_error of error
@@ -11,7 +13,8 @@ let base_url = "https://www.googleapis.com/youtube/v3/"
 let rec find path json =
   match (path, json) with
   | [], j -> Some j
-  | key :: rest, `Assoc fields -> Option.bind (List.assoc_opt key fields) (find rest)
+  | key :: rest, `Assoc fields ->
+      Option.bind (List.Assoc.find fields ~equal:String.equal key) ~f:(find rest)
   | _ -> None
 
 let find_string path json =
@@ -81,7 +84,7 @@ let live_video_ids client ~key channel_id =
       ]
   in
   match find [ "items" ] json with
-  | Some (`List items) -> List.filter_map (find_string [ "id"; "videoId" ]) items
+  | Some (`List items) -> List.filter_map items ~f:(find_string [ "id"; "videoId" ])
   | _ -> []
 
 type message = { author : string; text : string }
@@ -103,7 +106,7 @@ let messages client ~key ~live_chat_id ?page_token () =
       ("part", "snippet,authorDetails");
       ("maxResults", "2000");
     ]
-    @ Option.fold ~none:[] ~some:(fun t -> [ ("pageToken", t) ]) page_token
+    @ Option.value_map page_token ~default:[] ~f:(fun t -> [ ("pageToken", t) ])
   in
   let json = get client ~key "liveChat/messages" params in
   let items = match find [ "items" ] json with Some (`List l) -> l | _ -> [] in
@@ -122,11 +125,11 @@ let messages client ~key ~live_chat_id ?page_token () =
     | _ -> None
   in
   {
-    messages = List.filter_map message items;
+    messages = List.filter_map items ~f:message;
     next_page_token = find_string [ "nextPageToken" ] json;
     polling_interval =
       (match find [ "pollingIntervalMillis" ] json with
-      | Some (`Int ms) -> float_of_int ms /. 1000.
+      | Some (`Int ms) -> Float.of_int ms /. 1000.
       | _ -> 5.);
     offline = Option.is_some (find [ "offlineAt" ] json);
   }

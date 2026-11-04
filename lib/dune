@@ -1,6 +1,7 @@
 (library
  (name twitch_chat)
  (libraries
+  core
   eio
   base64
   mirage-crypto-rng

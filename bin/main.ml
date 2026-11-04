@@ -2,9 +2,8 @@
    "chat SUBCOMMAND ARGS..." or a symlink named after a subcommand's alias,
    e.g. "twitch-chat ARGS...". *)
 
+open! Core
 open Twitch_chat
-
-module Command = Core.Command
 
 let twitch =
   Command.basic ~summary:"Read Twitch chat anonymously"
@@ -49,10 +48,12 @@ let commands =
 
 let () =
   (* Not Sys.executable_name: that resolves the symlink we dispatch on. *)
-  let invoked_as = Filename.basename Sys.argv.(0) in
-  match List.find_opt (fun (_, alias, _) -> alias = invoked_as) commands with
+  let invoked_as = Filename.basename (Sys.get_argv ()).(0) in
+  match
+    List.find commands ~f:(fun (_, alias, _) -> String.equal alias invoked_as)
+  with
   | Some (_, _, command) -> Command_unix.run command
   | None ->
       Command_unix.run
         (Command.group ~summary:"Read live chat from streaming platforms"
-           (List.map (fun (name, _, command) -> (name, command)) commands))
+           (List.map commands ~f:(fun (name, _, command) -> (name, command))))

@@ -4,6 +4,8 @@
    filters. Replaced characters are shown as ⟨U+XXXX⟩, which is hard to
    confuse with someone literally typing "\x1b". *)
 
+open! Core
+
 let add_marker b cp = Printf.bprintf b "⟨U+%04X⟩" cp
 
 (* Characters that can drive the terminal: C0 controls (incl. ESC), DEL, and
@@ -14,12 +16,12 @@ let sanitize_controls s =
   let n = String.length s in
   let rec go i =
     if i < n then
-      match Char.code s.[i] with
+      match Char.to_int s.[i] with
       | c when c < 0x20 || c = 0x7f ->
           add_marker b c;
           go (i + 1)
-      | 0xc2 when i + 1 < n && Char.code s.[i + 1] land 0xe0 = 0x80 ->
-          add_marker b (Char.code s.[i + 1]);
+      | 0xc2 when i + 1 < n && Char.to_int s.[i + 1] land 0xe0 = 0x80 ->
+          add_marker b (Char.to_int s.[i + 1]);
           go (i + 2)
       | _ ->
           Buffer.add_char b s.[i];
@@ -40,11 +42,11 @@ let sanitize_spoofing s =
   let b = Buffer.create (String.length s) in
   let n = String.length s in
   let rec go i =
-    if i + 2 < n && s.[i] = '\xe2' then
+    if i + 2 < n && Char.equal s.[i] '\xe2' then
       let cp =
         0x2000
-        lor ((Char.code s.[i + 1] land 0x3f) lsl 6)
-        lor (Char.code s.[i + 2] land 0x3f)
+        lor ((Char.to_int s.[i + 1] land 0x3f) lsl 6)
+        lor (Char.to_int s.[i + 2] land 0x3f)
       in
       if is_spoofing cp then (
         add_marker b cp;
@@ -64,5 +66,4 @@ let output_filters = [ sanitize_controls; sanitize_spoofing ]
 
 (* [(|>)] is exactly fold_left's (accumulator -> element) callback here:
    the line so far, piped into the next filter. *)
-let apply_filters : string -> (string -> string) list -> string =
-  List.fold_left ( |> )
+let apply_filters line filters = List.fold filters ~init:line ~f:( |> )

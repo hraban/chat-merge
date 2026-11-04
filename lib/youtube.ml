@@ -2,6 +2,8 @@
    official YouTube Data API v3 and prints every chat message to stdout.
    Needs an API key in $YOUTUBE_API_KEY. *)
 
+open! Core
+
 (* Each poll costs 5 units of the default 10,000/day quota, so never poll
    faster than this even when the server says we may. *)
 let min_poll_interval = 5.0
@@ -11,16 +13,16 @@ let min_poll_interval = 5.0
 let target_of_arg arg =
   let uri = Uri.of_string arg in
   let segments =
-    List.filter (( <> ) "") (String.split_on_char '/' (Uri.path uri))
+    List.filter (String.split (Uri.path uri) ~on:'/') ~f:(Fn.non String.is_empty)
   in
   match (Uri.host uri, Uri.get_query_param uri "v", segments) with
-  | None, _, _ when String.starts_with ~prefix:"@" arg -> `Handle arg
+  | None, _, _ when String.is_prefix arg ~prefix:"@" -> `Handle arg
   | None, _, _ -> `Video arg
   | Some _, Some v, _ -> `Video v
-  | Some _, None, first :: _ when String.starts_with ~prefix:"@" first ->
+  | Some _, None, first :: _ when String.is_prefix first ~prefix:"@" ->
       `Handle first
   | Some _, None, segments -> (
-      match List.rev segments with last :: _ -> `Video last | [] -> `Video arg)
+      match List.last segments with Some last -> `Video last | None -> `Video arg)
 
 (* The live video IDs an argument refers to; a channel may have several. *)
 let video_ids ~client ~key arg =
@@ -39,7 +41,7 @@ let video_ids ~client ~key arg =
           | ids -> ids))
 
 let print_message out channel (msg : Youtube_api.message) =
-  let line = Printf.sprintf "%s <%s> %s" channel msg.author msg.text in
+  let line = sprintf "%s <%s> %s" channel msg.author msg.text in
   let line = Sanitize.(apply_filters line output_filters) ^ "\n" in
   Eio.Flow.copy_string line out
 
@@ -49,7 +51,7 @@ let follow ~clock ~client ~key ~out video_id =
   let rec poll ~channel ~live_chat_id page_token =
     match Youtube_api.messages client ~key ~live_chat_id ?page_token () with
     | page ->
-        List.iter (print_message out channel) page.messages;
+        List.iter page.messages ~f:(print_message out channel);
         if page.offline then Eio.traceln "%s: stream ended" channel
         else (
           Eio.Time.sleep clock (Float.max min_poll_interval page.polling_interval);
@@ -58,7 +60,7 @@ let follow ~clock ~client ~key ~out video_id =
         raise e
     | exception (Eio.Cancel.Cancelled _ as e) -> raise e
     | exception e ->
-        Eio.traceln "%s: %s, retrying in %.0fs" channel (Printexc.to_string e)
+        Eio.traceln "%s: %s, retrying in %.0fs" channel (Exn.to_string e)
           min_poll_interval;
         Eio.Time.sleep clock min_poll_interval;
         poll ~channel ~live_chat_id page_token
@@ -80,13 +82,13 @@ let https ~authenticator =
   fun uri raw ->
     let host =
       Uri.host uri
-      |> Option.map (fun h -> Domain_name.(host_exn (of_string_exn h)))
+      |> Option.map ~f:(fun h -> Domain_name.(host_exn (of_string_exn h)))
     in
     Tls_eio.client_of_flow ?host tls_config raw
 
 (* $YOUTUBE_API_KEY, or exits with an error if it isn't set. *)
 let api_key env =
-  match Sys.getenv_opt "YOUTUBE_API_KEY" with
+  match Sys.getenv "YOUTUBE_API_KEY" with
   | None | Some "" ->
       Eio.Flow.copy_string "youtube: set YOUTUBE_API_KEY\n"
         (Eio.Stdenv.stderr env);

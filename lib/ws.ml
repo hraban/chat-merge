@@ -1,7 +1,12 @@
 (* Minimal RFC 6455 WebSocket client: just enough to talk to Twitch's chat
    endpoint. No extensions, no Sec-WebSocket-Accept verification. *)
 
+open! Core
+
 module R = Eio.Buf_read
+
+(* Core's Buffer lacks the binary add_* functions. *)
+module Buffer = Stdlib.Buffer
 
 type t = {
   flow : Eio.Flow.two_way_ty Eio.Resource.t;
@@ -15,9 +20,9 @@ let fail fmt = Printf.ksprintf (fun s -> raise (Protocol_error s)) fmt
 let handshake ~host ~path flow =
   let key = Base64.encode_string (Mirage_crypto_rng.generate 16) in
   let request =
-    String.concat "\r\n"
+    String.concat ~sep:"\r\n"
       [
-        Printf.sprintf "GET %s HTTP/1.1" path;
+        sprintf "GET %s HTTP/1.1" path;
         "Host: " ^ host;
         "Upgrade: websocket";
         "Connection: Upgrade";
@@ -30,18 +35,19 @@ let handshake ~host ~path flow =
   Eio.Flow.copy_string request flow;
   let buf = R.of_flow flow ~max_size:(1 lsl 20) in
   let status = R.line buf in
-  (match String.split_on_char ' ' status with
+  (match String.split status ~on:' ' with
   | _ :: "101" :: _ -> ()
   | _ -> fail "handshake rejected: %s" status);
   (* Skip the response headers. *)
-  let rec skip_headers () = if R.line buf <> "" then skip_headers () in
+  let rec skip_headers () =
+    if not (String.is_empty (R.line buf)) then skip_headers ()
+  in
   skip_headers ();
   { flow; buf }
 
 let xor_mask mask payload =
-  String.mapi
-    (fun i c -> Char.chr (Char.code c lxor Char.code mask.[i land 3]))
-    payload
+  String.mapi payload ~f:(fun i c ->
+      Char.of_int_exn (Char.to_int c lxor Char.to_int mask.[i land 3]))
 
 (* Client-to-server frames must always be masked. *)
 let send_frame t ~opcode payload =
@@ -68,7 +74,7 @@ let read_frame t =
   let len =
     match b1 land 0x7f with
     | 126 -> R.BE.uint16 t.buf
-    | 127 -> Int64.to_int (R.BE.uint64 t.buf)
+    | 127 -> Int64.to_int_exn (R.BE.uint64 t.buf)
     | n -> n
   in
   let mask = if b1 land 0x80 <> 0 then Some (R.take 4 t.buf) else None in
@@ -86,7 +92,7 @@ let recv t =
     match opcode with
     | 0x0 | 0x1 | 0x2 ->
         let acc = payload :: acc in
-        if fin then Some (String.concat "" (List.rev acc)) else collect acc
+        if fin then Some (String.concat (List.rev acc)) else collect acc
     | 0x8 -> None
     | 0x9 ->
         send_frame t ~opcode:0xA payload;
