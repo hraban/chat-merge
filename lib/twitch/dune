@@ -1,7 +1,7 @@
 (library
  (name twitch)
  (libraries
-  twitch_chat
+  chat_merge
   core
   eio
   base64

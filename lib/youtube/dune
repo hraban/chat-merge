@@ -1,7 +1,7 @@
 (library
  (name youtube)
  (libraries
-  twitch_chat
+  chat_merge
   core
   eio
   cohttp

@@ -53,12 +53,12 @@ let video_ids ~client ~key arg =
 
 let add_message stream channel (msg : Api.message) =
   Eio.Stream.add stream
-    { Twitch_chat.Chat_message.platform= Youtube
+    { Chat_merge.Chat_message.platform= Youtube
     ; channel
     ; author= msg.author
     ; text= msg.text
     ; kind= Say
-    ; segments= Twitch_chat.Chat_message.plain_segments msg.text }
+    ; segments= Chat_merge.Chat_message.plain_segments msg.text }
 
 (* Follows one stream's chat until it ends. Network and server (5xx) errors
    are retried with the same page token; client (4xx) errors give up. *)

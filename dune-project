@@ -1,13 +1,13 @@
 (lang dune 3.17)
 
-(name twitch_chat)
+(name chat_merge)
 
 (cram enable)
 
 ; (generate_opam_files true)
 
 (package
- (name twitch_chat)
+ (name chat_merge)
  (synopsis "Read Twitch chat anonymously over WebSocket")
  (depends
   (ocaml

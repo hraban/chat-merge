@@ -2,7 +2,7 @@
  (name main)
  (public_name chat)
  (libraries
-  twitch_chat
+  chat_merge
   twitch
   youtube
   core

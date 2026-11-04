@@ -1,7 +1,7 @@
 (* Where the binary sends the messages the platform readers produce. *)
 
 open! Core
-open Twitch_chat
+open Chat_merge
 
 (* Runs [produce] with a fresh stream and prints each message on stdout as it
    arrives, until [produce] returns and everything still queued is printed. *)
