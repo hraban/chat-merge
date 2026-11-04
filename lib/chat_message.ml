@@ -27,3 +27,15 @@ let to_line t =
     | Action -> sprintf "%s * %s %s" t.channel t.author t.text
   in
   Sanitize.(apply_filters line output_filters)
+
+let%expect_test "to_line sanitizes chat text" =
+  print_endline
+    (to_line
+       {
+         platform = Youtube;
+         channel = "Some Channel";
+         author = "mallory";
+         text = "\027[2Jgotcha\xe2\x80\xae";
+         kind = Say;
+       });
+  [%expect {| Some Channel <mallory> ⟨U+001B⟩[2Jgotcha⟨U+202E⟩ |}]

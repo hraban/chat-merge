@@ -24,6 +24,25 @@ let message_of_irc (msg : Irc.message) : Chat_message.t option =
       Some { platform = Twitch; channel; author; text; kind }
   | _ -> None
 
+let%expect_test "message_of_irc" =
+  let show line =
+    match Irc.parse line with
+    | None -> print_endline "(unparsable)"
+    | Some msg -> (
+        match message_of_irc msg with
+        | None -> print_endline "(no message)"
+        | Some m -> print_endline (Chat_message.to_line m))
+  in
+  show "@display-name=Foo :foo!foo@foo.tmi.twitch.tv PRIVMSG #chan :hi there";
+  [%expect {| #chan <Foo> hi there |}];
+  (* Empty display-name falls back to the nick. *)
+  show "@display-name= :foo!foo@foo.tmi.twitch.tv PRIVMSG #chan :hi";
+  [%expect {| #chan <foo> hi |}];
+  show ":foo!foo@foo.tmi.twitch.tv PRIVMSG #chan :\001ACTION waves\001";
+  [%expect {| #chan * foo waves |}];
+  show ":tmi.twitch.tv 001 justinfan123 :Welcome, GLHF!";
+  [%expect {| (no message) |}]
+
 let handle_line ws stream line =
   let line = String.chop_suffix_if_exists line ~suffix:"\r" in
   match Irc.parse line with

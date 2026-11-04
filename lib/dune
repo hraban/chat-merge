@@ -12,4 +12,7 @@
   tls
   tls-eio
   ca-certs
-  domain-name))
+  domain-name)
+ (inline_tests)
+ (preprocess
+  (pps ppx_expect)))

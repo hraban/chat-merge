@@ -1,9 +1,2 @@
 (cram
  (deps %{bin:chat}))
-
-(library
- (name twitch_chat_test)
- (libraries twitch_chat core)
- (inline_tests)
- (preprocess
-  (pps ppx_expect)))
