@@ -1,42 +1,60 @@
 (* Anonymous Twitch chat reader. Connects to Twitch's WebSocket chat endpoint
-   as a "justinfan" guest and prints every chat message to stdout. *)
+   as a "justinfan" guest and passes on every chat message. *)
 
 open! Core
 
 let host = "irc-ws.chat.twitch.tv"
 
-let print_message out (msg : Irc.message) =
+(* The chat message an IRC line carries, if it is one. *)
+let message_of_irc (msg : Irc.message) : Chat_message.t option =
   match (msg.command, msg.params) with
   | "PRIVMSG", [ channel; text ] ->
-      let name =
+      let author =
         match List.Assoc.find msg.tags ~equal:String.equal "display-name" with
         | Some n when not (String.is_empty n) -> n
         | _ -> Option.value (Irc.nick msg) ~default:"?"
       in
-      let line =
+      let kind, text =
         (* /me messages arrive as CTCP ACTION. *)
         if String.is_prefix text ~prefix:"\001ACTION " then
           let body = String.drop_prefix text 8 in
-          let body = String.chop_suffix_if_exists body ~suffix:"\001" in
-          sprintf "%s * %s %s" channel name body
-        else sprintf "%s <%s> %s" channel name text
+          (Chat_message.Action, String.chop_suffix_if_exists body ~suffix:"\001")
+        else (Say, text)
       in
-      let line = Sanitize.(apply_filters line output_filters) ^ "\n" in
-      Eio.Flow.copy_string line out
-  | _ -> ()
+      Some { platform = Twitch; channel; author; text; kind }
+  | _ -> None
 
-let handle_line ws out line =
+let%expect_test "message_of_irc" =
+  let show line =
+    match Irc.parse line with
+    | None -> print_endline "(unparsable)"
+    | Some msg -> (
+        match message_of_irc msg with
+        | None -> print_endline "(no message)"
+        | Some m -> print_endline (Chat_message.to_line m))
+  in
+  show "@display-name=Foo :foo!foo@foo.tmi.twitch.tv PRIVMSG #chan :hi there";
+  [%expect {| #chan <Foo> hi there |}];
+  (* Empty display-name falls back to the nick. *)
+  show "@display-name= :foo!foo@foo.tmi.twitch.tv PRIVMSG #chan :hi";
+  [%expect {| #chan <foo> hi |}];
+  show ":foo!foo@foo.tmi.twitch.tv PRIVMSG #chan :\001ACTION waves\001";
+  [%expect {| #chan * foo waves |}];
+  show ":tmi.twitch.tv 001 justinfan123 :Welcome, GLHF!";
+  [%expect {| (no message) |}]
+
+let handle_line ws stream line =
   let line = String.chop_suffix_if_exists line ~suffix:"\r" in
   match Irc.parse line with
   | Some { command = "PING"; params; _ } ->
       let token = Option.value (List.last params) ~default:host in
       Ws.send_text ws ("PONG :" ^ token)
-  | Some msg -> print_message out msg
+  | Some msg -> Option.iter (message_of_irc msg) ~f:(Eio.Stream.add stream)
   | None -> ()
 
 (* One connection's lifetime. Returns when the server closes the socket,
    which it also does shortly after sending RECONNECT. *)
-let run_session ~net ~tls_config ~out channels =
+let run_session ~net ~tls_config ~stream channels =
   Eio.Net.with_tcp_connect net ~host ~service:"443" @@ fun sock ->
   let tls =
     Tls_eio.client_of_flow tls_config
@@ -57,7 +75,7 @@ let run_session ~net ~tls_config ~out channels =
     match Ws.recv ws with
     | None -> ()
     | Some data ->
-        List.iter (String.split data ~on:'\n') ~f:(handle_line ws out);
+        List.iter (String.split data ~on:'\n') ~f:(handle_line ws stream);
         loop ()
   in
   loop ()
@@ -67,15 +85,16 @@ let normalize_channel c =
 
 let ok_or_fail = function Ok x -> x | Error (`Msg m) -> failwith m
 
-(* Reads [channels] until cancelled, reconnecting as needed. Must run inside
-   Eio_main.run with the RNG already seeded. *)
-let follow env channels =
+(* Reads [channels] until cancelled, reconnecting as needed, adding each chat
+   message to [stream]. Must run inside Eio_main.run with the RNG already
+   seeded. *)
+let follow env ~stream channels =
   let channels = List.map channels ~f:normalize_channel in
   let authenticator = ok_or_fail (Ca_certs.authenticator ()) in
   let tls_config = ok_or_fail (Tls.Config.client ~authenticator ()) in
-  let net = Eio.Stdenv.net env and out = Eio.Stdenv.stdout env in
+  let net = Eio.Stdenv.net env in
   let rec forever () =
-    (try run_session ~net ~tls_config ~out channels with
+    (try run_session ~net ~tls_config ~stream channels with
     | Eio.Cancel.Cancelled _ as e -> raise e
     | e -> Eio.traceln "connection error: %s" (Exn.to_string e));
     Eio.traceln "disconnected, reconnecting in 2s";

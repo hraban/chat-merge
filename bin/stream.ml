@@ -13,9 +13,10 @@ let run ?twitch ?youtube () =
     exit 2);
   (* Check for the key up front, not after Twitch output has started. *)
   let youtube = Option.map youtube ~f:(fun target -> (Youtube.api_key env, target)) in
+  Output.with_stdout_sink env @@ fun stream ->
   Eio.Fiber.both
     (fun () ->
-      Option.iter twitch ~f:(fun channel -> Twitch.follow env [ channel ]))
+      Option.iter twitch ~f:(fun channel -> Twitch.follow env ~stream [ channel ]))
     (fun () ->
-      Option.iter youtube
-        ~f:(fun (key, target) -> Youtube.follow_targets env ~key [ target ]))
+      Option.iter youtube ~f:(fun (key, target) ->
+          Youtube.follow_targets env ~key ~stream [ target ]))

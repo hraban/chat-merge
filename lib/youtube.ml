@@ -1,5 +1,5 @@
 (* YouTube live chat reader. Follows one or more live streams through the
-   official YouTube Data API v3 and prints every chat message to stdout.
+   official YouTube Data API v3 and passes on every chat message.
    Needs an API key in $YOUTUBE_API_KEY. *)
 
 open! Core
@@ -40,18 +40,23 @@ let video_ids ~client ~key arg =
               []
           | ids -> ids))
 
-let print_message out channel (msg : Youtube_api.message) =
-  let line = sprintf "%s <%s> %s" channel msg.author msg.text in
-  let line = Sanitize.(apply_filters line output_filters) ^ "\n" in
-  Eio.Flow.copy_string line out
+let add_message stream channel (msg : Youtube_api.message) =
+  Eio.Stream.add stream
+    {
+      Chat_message.platform = Youtube;
+      channel;
+      author = msg.author;
+      text = msg.text;
+      kind = Say;
+    }
 
 (* Follows one stream's chat until it ends. Network and server (5xx) errors
    are retried with the same page token; client (4xx) errors give up. *)
-let follow ~clock ~client ~key ~out video_id =
+let follow ~clock ~client ~key ~stream video_id =
   let rec poll ~channel ~live_chat_id page_token =
     match Youtube_api.messages client ~key ~live_chat_id ?page_token () with
     | page ->
-        List.iter page.messages ~f:(print_message out channel);
+        List.iter page.messages ~f:(add_message stream channel);
         if page.offline then Eio.traceln "%s: stream ended" channel
         else (
           Eio.Time.sleep clock (Float.max min_poll_interval page.polling_interval);
@@ -95,20 +100,21 @@ let api_key env =
       exit 2
   | Some key -> key
 
-(* Follows every live stream the [args] refer to until they end. Must run
-   inside Eio_main.run with the RNG already seeded. *)
-let follow_targets env ~key args =
+(* Follows every live stream the [args] refer to until they end, adding each
+   chat message to [stream]. Must run inside Eio_main.run with the RNG
+   already seeded. *)
+let follow_targets env ~key ~stream args =
   let authenticator = ok_or_fail (Ca_certs.authenticator ()) in
   let client =
     Cohttp_eio.Client.make
       ~https:(Some (https ~authenticator))
       (Eio.Stdenv.net env)
   in
-  let clock = Eio.Stdenv.clock env and out = Eio.Stdenv.stdout env in
+  let clock = Eio.Stdenv.clock env in
   Eio.Fiber.List.iter
     (fun arg ->
       match video_ids ~client ~key arg with
-      | ids -> Eio.Fiber.List.iter (follow ~clock ~client ~key ~out) ids
+      | ids -> Eio.Fiber.List.iter (follow ~clock ~client ~key ~stream) ids
       | exception Youtube_api.Api_error { status; reason; message } ->
           Eio.traceln "%s: API error %d %s: %s" arg status reason message)
     args

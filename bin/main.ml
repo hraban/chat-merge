@@ -13,7 +13,8 @@ let twitch =
         ~f:(fun channels () ->
           Eio_main.run @@ fun env ->
           Mirage_crypto_rng_unix.use_default ();
-          Twitch.follow env channels))
+          Output.with_stdout_sink env (fun stream ->
+              Twitch.follow env ~stream channels)))
 
 let youtube =
   Command.basic ~summary:"Read YouTube live chat via the Data API"
@@ -26,7 +27,9 @@ let youtube =
         ~f:(fun targets () ->
           Eio_main.run @@ fun env ->
           Mirage_crypto_rng_unix.use_default ();
-          Youtube.follow_targets env ~key:(Youtube.api_key env) targets))
+          let key = Youtube.api_key env in
+          Output.with_stdout_sink env (fun stream ->
+              Youtube.follow_targets env ~key ~stream targets)))
 
 let stream =
   Command.basic ~summary:"Interleave Twitch and YouTube chat as it arrives"
