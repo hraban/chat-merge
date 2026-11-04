@@ -6,7 +6,7 @@ open! Core
 let host = "irc-ws.chat.twitch.tv"
 
 (* The chat message an IRC line carries, if it is one. *)
-let message_of_irc (msg : Irc.message) : Chat_message.t option =
+let message_of_irc (msg : Irc.message) : Twitch_chat.Chat_message.t option =
   match (msg.command, msg.params) with
   | "PRIVMSG", [channel; text] ->
       let author =
@@ -16,12 +16,13 @@ let message_of_irc (msg : Irc.message) : Chat_message.t option =
         | _ ->
             Option.value (Irc.nick msg) ~default:"?"
       in
+      let open Twitch_chat.Chat_message in
       let kind, shift, text =
         (* /me messages arrive as CTCP ACTION. The emote indices count from
            the start of the whole trailing parameter. *)
         if String.is_prefix text ~prefix:"\001ACTION " then
           let body = String.drop_prefix text 8 in
-          ( Chat_message.Action
+          ( Twitch_chat.Chat_message.Action
           , 8
           , String.chop_suffix_if_exists body ~suffix:"\001" )
         else (Say, 0, text)
@@ -48,7 +49,7 @@ let%expect_test "message_of_irc" =
       | None ->
           print_endline "(no message)"
       | Some m ->
-          print_endline (Chat_message.to_line m) )
+          print_endline (Twitch_chat.Chat_message.to_line m) )
   in
   show "@display-name=Foo :foo!foo@foo.tmi.twitch.tv PRIVMSG #chan :hi there" ;
   [%expect {| <Foo> hi there |}] ;

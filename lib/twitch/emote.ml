@@ -63,12 +63,12 @@ let codepoint_offsets s =
 
 (* [text] split into plain runs and emotes, all sanitized. Emotes that are
    malformed, out of range or overlapping are left as plain text. *)
-let segments ~text emotes : Chat_message.segment list =
-  let open Chat_message in
+let segments ~text emotes : Twitch_chat.Chat_message.segment list =
+  let open Twitch_chat.Chat_message in
   let offs = codepoint_offsets text in
   let ncp = Array.length offs - 1 in
   let sub a b = String.sub text ~pos:offs.(a) ~len:(offs.(b) - offs.(a)) in
-  let clean s = Sanitize.(apply_filters s output_filters) in
+  let clean s = Twitch_chat.Sanitize.(apply_filters s output_filters) in
   let emotes =
     List.filter emotes ~f:(fun e ->
         valid_id e.id && 0 <= e.first && e.first <= e.last && e.last < ncp )
@@ -90,7 +90,7 @@ let segments ~text emotes : Chat_message.segment list =
 let%expect_test "segments" =
   let show text emotes =
     List.iter (segments ~text emotes) ~f:(function
-      | Chat_message.Text s ->
+      | Twitch_chat.Chat_message.Text s ->
           printf "text %S\n" s
       | Emote {id; name} ->
           printf "emote %s %S\n" id name )

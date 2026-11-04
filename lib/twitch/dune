@@ -1,0 +1,15 @@
+(library
+ (name twitch)
+ (libraries
+  twitch_chat
+  core
+  eio
+  base64
+  mirage-crypto-rng
+  tls
+  tls-eio
+  ca-certs
+  domain-name)
+ (inline_tests)
+ (preprocess
+  (pps ppx_expect)))

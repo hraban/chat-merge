@@ -20,7 +20,8 @@ let run ~serve ~bind ?twitch ?youtube () =
   @@ fun stream ->
   Eio.Fiber.both
     (fun () ->
-      Option.iter twitch ~f:(fun channel -> Twitch.follow env ~stream [channel]) )
+      Option.iter twitch ~f:(fun channel ->
+          Twitch.Client.follow env ~stream [channel] ) )
     (fun () ->
       Option.iter youtube ~f:(fun (key, target) ->
           Youtube.follow_targets env ~key ~stream [target] ) )
