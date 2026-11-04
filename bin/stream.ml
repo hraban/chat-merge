@@ -4,7 +4,7 @@
 open! Core
 open Twitch_chat
 
-let run ~serve ?twitch ?youtube () =
+let run ~serve ~bind ?twitch ?youtube () =
   Eio_main.run
   @@ fun env ->
   Mirage_crypto_rng_unix.use_default () ;
@@ -16,7 +16,7 @@ let run ~serve ?twitch ?youtube () =
   let youtube =
     Option.map youtube ~f:(fun target -> (Youtube.api_key env, target))
   in
-  Output.with_sink env ~serve
+  Output.with_sink env ~serve ~bind
   @@ fun stream ->
   Eio.Fiber.both
     (fun () ->

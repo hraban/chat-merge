@@ -42,10 +42,17 @@ let with_web_sink env ~addr ~port produce =
     (fun () -> produce stream)
 
 (* Picks the sink from the --serve flag. *)
-let with_sink env ~serve produce =
+let with_sink env ~serve ~bind produce =
   match serve with
   | None ->
       with_stdout_sink env produce
   | Some port ->
-      Eio.traceln "serving on http://127.0.0.1:%d/" port ;
-      with_web_sink env ~addr:Eio.Net.Ipaddr.V4.loopback ~port produce
+      let addr =
+        match Eio.Net.getaddrinfo_stream (Eio.Stdenv.net env) bind with
+        | `Tcp (addr, _) :: _ ->
+            addr
+        | _ ->
+            failwithf "--bind: cannot resolve %S" bind ()
+      in
+      Eio.traceln "serving on port %d of %s" port bind ;
+      with_web_sink env ~addr ~port produce
