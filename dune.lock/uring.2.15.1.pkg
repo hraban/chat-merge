@@ -1,4 +1,4 @@
-(version 2.15.0)
+(version 2.15.1)
 
 (build
  (choice
@@ -28,9 +28,9 @@
 (source
  (fetch
   (url
-   https://github.com/ocaml-multicore/ocaml-uring/releases/download/v2.15.0/uring-2.15.0.tbz)
+   https://github.com/ocaml-multicore/ocaml-uring/releases/download/v2.15.1/uring-2.15.1.tbz)
   (checksum
-   sha512=0f101c1a68f8de1f4d05614d1284beb0755cffa82605c48df6e9b7a336249f614d0eb46f9626063ac96fca5345b248abf4cb193a9d00047bd1edb3c1aa714c7c)))
+   sha512=077b848b83960326f7a0e5dff74a092c3ad2ddfe890036859260eb96640f2b85f57801c9d8d62a14a22fad87c3105a3c8bef36a42fe4e7374093c569f1b82321)))
 
 (enabled_on_platforms
  (only

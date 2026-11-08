@@ -1,4 +1,4 @@
-(version 2.1.4)
+(version 2.1.5)
 
 (build
  (all_platforms
@@ -14,6 +14,6 @@
 (source
  (fetch
   (url
-   https://github.com/mirleft/ocaml-tls/releases/download/v2.1.4/tls-2.1.4.tbz)
+   https://github.com/mirleft/ocaml-tls/releases/download/v2.1.5/tls-2.1.5.tbz)
   (checksum
-   sha512=605fec98fcd9a31aea794f3ef4d8d40e739e634c228b5e7a016c9a4025f489d151cd9979d5804ce9680caf5bd16c21ca6e22dd91f9f7217f8b2ddb74b9c8cac3)))
+   sha512=d3dd21291df4a8c377bf379d45adf158d263ed41652709cac0ee846fe2cbff3e2d6cf6e6556f5fd0e9c2087c45ccac622ad4ba41a7b111660e4bc36c7c8647f8)))
