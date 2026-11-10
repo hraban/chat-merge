@@ -23,6 +23,7 @@
   eio_main
   http
   mirage-crypto-rng
+  ppx_blob
   ppx_expect
   ppx_let
   tls

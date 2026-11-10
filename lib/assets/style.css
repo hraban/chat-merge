@@ -1,0 +1,8 @@
+:root { color-scheme: light dark; }
+body { font: 15px/1.4 system-ui, sans-serif; margin: 0; padding: 8px 12px; }
+.m { padding: 1px 0; overflow-wrap: anywhere; }
+.twitch .p { color: #9146ff; }
+.youtube .p { color: #e00; }
+.n { font-weight: 600; }
+.m img { height: 1.4em; vertical-align: middle; }
+#s { position: fixed; top: 4px; right: 8px; opacity: .6; font-size: 12px; }

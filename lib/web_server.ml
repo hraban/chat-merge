@@ -1,5 +1,6 @@
-(* Serves chat messages to browsers: "/" is a static page, "/events" a
-   Server-Sent Events stream of every message that arrives while connected. *)
+(* Serves chat messages to browsers: "/" and its stylesheet and script are
+   static files, "/events" a Server-Sent Events stream of every message that
+   arrives while connected. *)
 
 open! Core
 
@@ -7,74 +8,11 @@ let client_queue_size = 256
 
 let heartbeat_seconds = 15.
 
-let page =
-  {|<!doctype html>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>chat</title>
-<style>
-  :root { color-scheme: light dark; }
-  body { font: 15px/1.4 system-ui, sans-serif; margin: 0; padding: 8px 12px; }
-  .m { padding: 1px 0; overflow-wrap: anywhere; }
-  .twitch .p { color: #9146ff; }
-  .youtube .p { color: #e00; }
-  .n { font-weight: 600; }
-  .m img { height: 1.4em; vertical-align: middle; }
-  #s { position: fixed; top: 4px; right: 8px; opacity: .6; font-size: 12px; }
-</style>
-<div id="s">connecting…</div>
-<div id="log"></div>
-<script>
-  const log = document.getElementById("log");
-  const status = document.getElementById("s");
-  // Twitch's default name colors, for chatters who haven't picked their own.
-  // Each name gets a random one on first sight and keeps it until reload.
-  const palette = ["#ff0000", "#0000ff", "#008000", "#b22222", "#ff7f50",
-    "#9acd32", "#ff4500", "#2e8b57", "#daa520", "#d2691e", "#5f9ea0",
-    "#1e90ff", "#ff69b4", "#8a2be2", "#00ff7f"];
-  const colors = new Map();
-  const colorOf = (n) => {
-    if (!colors.has(n))
-      colors.set(n, palette[Math.floor(Math.random() * palette.length)]);
-    return colors.get(n);
-  };
-  const es = new EventSource("events");
-  es.onopen = () => status.textContent = "live";
-  es.onerror = () => status.textContent = "reconnecting…";
-  es.onmessage = (e) => {
-    const m = JSON.parse(e.data);
-    // If you want to only stick when already at the bottom:
-    // const stick = innerHeight + scrollY >= document.body.scrollHeight - 40;
-    // Instead, because of OBS lack of scrolling, just always stick:
-    const stick = true;
-    const div = document.createElement("div");
-    div.className = "m " + m.platform;
-    const p = document.createElement("span");
-    p.className = "p";
-    p.textContent = "● ";
-    // Text goes in as text nodes, never parsed as HTML. Emote ids are
-    // restricted to [A-Za-z0-9_] by the server.
-    const name = document.createElement("span");
-    name.className = "n";
-    // The chatter's own Twitch color if they set one, else a random one.
-    name.style.color = m.color ?? colorOf(m.author);
-    name.textContent = m.author;
-    if (m.kind === "action") div.append(p, "* ", name, " ");
-    else div.append(p, name, ": ");
-    for (const s of m.segments) {
-      if (s.emote === undefined) { div.append(s.text); continue; }
-      const img = document.createElement("img");
-      img.src = "https://static-cdn.jtvnw.net/emoticons/v2/" +
-        encodeURIComponent(s.emote) + "/default/dark/1.0";
-      img.alt = img.title = s.text;
-      div.append(img);
-    }
-    log.append(div);
-    while (log.childElementCount > 1000) log.firstChild.remove();
-    if (stick) scrollTo(0, document.body.scrollHeight);
-  };
-</script>
-|}
+(* Static files, compiled into the binary: request path -> content type, body. *)
+let assets =
+  [ ("/", ("text/html; charset=utf-8", [%blob "assets/index.html"]))
+  ; ("/style.css", ("text/css; charset=utf-8", [%blob "assets/style.css"]))
+  ; ("/app.js", ("text/javascript; charset=utf-8", [%blob "assets/app.js"])) ]
 
 let platform_name : Chat_message.platform -> string = function
   | Twitch ->
@@ -157,48 +95,48 @@ let serve_events t env oc =
       in
       loop () )
 
+let respond ~status ~headers body =
+  `Expert
+    ( Http.Response.make ~status
+        ~headers:
+          (Http.Header.of_list
+             ( ("content-length", Int.to_string (String.length body))
+             :: ("connection", "close") :: headers ) )
+        ()
+    , fun _ic oc ->
+        Eio.Buf_write.string oc body ;
+        Eio.Buf_write.flush oc )
+
 let callback t env _conn (req : Http.Request.t) _body =
-  let headers = Http.Header.of_list in
   match (req.meth, Uri.path (Uri.of_string req.resource)) with
-  | `GET, "/" ->
-      `Expert
-        ( Http.Response.make ~status:`OK
-            ~headers:
-              (headers
-                 [ ("content-type", "text/html; charset=utf-8")
-                 ; ("content-length", Int.to_string (String.length page))
-                 ; ("connection", "close")
-                 ; ( "content-security-policy"
-                   , "default-src 'none'; script-src 'unsafe-inline'; \
-                      style-src 'unsafe-inline'; connect-src 'self'; img-src \
-                      https://static-cdn.jtvnw.net" ) ] )
-            ()
-        , fun _ic oc ->
-            Eio.Buf_write.string oc page ;
-            Eio.Buf_write.flush oc )
   | `GET, "/events" ->
       `Expert
         ( Http.Response.make ~status:`OK
             ~headers:
-              (headers
+              (Http.Header.of_list
                  [ ("content-type", "text/event-stream")
                  ; ("cache-control", "no-cache")
                  ; ("transfer-encoding", "chunked")
                  ; ("connection", "close") ] )
             ()
         , fun _ic oc -> serve_events t env oc )
+  | `GET, path -> (
+    match List.Assoc.find assets path ~equal:String.equal with
+    | Some (content_type, body) ->
+        respond ~status:`OK
+          ~headers:
+            [ ("content-type", content_type)
+              (* Revalidate every time, so a rebuilt binary is never paired
+                 with a stale script or stylesheet. *)
+            ; ("cache-control", "no-cache")
+            ; ( "content-security-policy"
+              , "default-src 'none'; script-src 'self'; style-src 'self'; \
+                 connect-src 'self'; img-src https://static-cdn.jtvnw.net" ) ]
+          body
+    | None ->
+        respond ~status:`Not_found ~headers:[] "not found\n" )
   | _ ->
-      let body = "not found\n" in
-      `Expert
-        ( Http.Response.make ~status:`Not_found
-            ~headers:
-              (headers
-                 [ ("content-length", Int.to_string (String.length body))
-                 ; ("connection", "close") ] )
-            ()
-        , fun _ic oc ->
-            Eio.Buf_write.string oc body ;
-            Eio.Buf_write.flush oc )
+      respond ~status:`Not_found ~headers:[] "not found\n"
 
 (* Serves on [addr:port] and forwards every message taken from [stream] to all
    connected browsers. Runs until cancelled. *)

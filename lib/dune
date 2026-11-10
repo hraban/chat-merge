@@ -3,4 +3,6 @@
  (libraries core eio cstruct cohttp-eio http uri yojson)
  (inline_tests)
  (preprocess
-  (pps ppx_expect)))
+  (pps ppx_expect ppx_blob))
+ (preprocessor_deps
+  (glob_files assets/*)))
