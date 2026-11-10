@@ -30,6 +30,7 @@
           src = ./.;
           nativeBuildInputs = with pkgs; [
             pkg-config
+            python3
           ] ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
             pkgconf
           ];
