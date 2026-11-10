@@ -7,7 +7,13 @@ type error = {status: int; reason: string; message: string}
 
 exception Api_error of error
 
-let base_url = "https://www.googleapis.com/youtube/v3/"
+(* $YOUTUBE_API_BASE_URL replaces this, so tests can talk to a fake server. *)
+let base_url =
+  match Sys.getenv "YOUTUBE_API_BASE_URL" with
+  | None | Some "" ->
+      "https://www.googleapis.com/youtube/v3/"
+  | Some url ->
+      url
 
 let uri ~key endpoint params =
   Uri.with_query' (Uri.of_string (base_url ^ endpoint)) (("key", key) :: params)
