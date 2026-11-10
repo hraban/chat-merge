@@ -2,6 +2,7 @@
    @color=#FF0000;display-name=Foo :foo!foo@foo.tmi.twitch.tv PRIVMSG #chan :hi *)
 
 open! Core
+open Option.Monad_infix
 
 type message =
   { tags: (string * string) list
@@ -42,4 +43,4 @@ let parse line =
       Some {tags; prefix; command; params= params @ trailing}
 
 (* "nick!user@host" -> "nick" *)
-let nick msg = Option.map msg.prefix ~f:(fun p -> fst (split_once '!' p))
+let nick msg = msg.prefix >>| fun p -> fst (split_once '!' p)

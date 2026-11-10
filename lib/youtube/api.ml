@@ -2,6 +2,9 @@
    https://developers.google.com/youtube/v3/live/docs/liveChatMessages *)
 
 open! Core
+open Option.Monad_infix
+
+let ( let+ ) = ( >>| )
 
 type error = {status: int; reason: string; message: string}
 
@@ -36,7 +39,7 @@ let api_error ~status body =
   in
   let message =
     Option.value
-      (Option.bind error ~f:(fun (e : Api_json.error_body) -> e.message))
+      (error >>= fun (e : Api_json.error_body) -> e.message)
       ~default:body
   in
   Api_error {status; reason; message}
@@ -68,13 +71,12 @@ let video client ~key id =
     get Api_json.videos_of_yojson client ~key "videos"
       [("part", "snippet,liveStreamingDetails"); ("id", id)]
   in
-  List.hd r.items
-  |> Option.map ~f:(fun (v : Api_json.video) ->
-      { channel= Option.value v.snippet.channel_title ~default:id
-      ; live_chat_id=
-          Option.bind v.live_streaming_details
-            ~f:(fun (d : Api_json.live_streaming_details) ->
-              d.active_live_chat_id ) } )
+  let+ (v : Api_json.video) = List.hd r.items in
+  { channel= Option.value v.snippet.channel_title ~default:id
+  ; live_chat_id=
+      ( v.live_streaming_details
+      >>= fun (d : Api_json.live_streaming_details) -> d.active_live_chat_id )
+  }
 
 (* Channel ID for a handle such as "@name", or [None] if there is no such
    channel. Costs 1 quota unit. *)
@@ -83,7 +85,7 @@ let channel_id_of_handle client ~key handle =
     get Api_json.channels_of_yojson client ~key "channels"
       [("part", "id"); ("forHandle", handle)]
   in
-  List.hd r.items |> Option.map ~f:(fun (c : Api_json.channel) -> c.id)
+  List.hd r.items >>| fun (c : Api_json.channel) -> c.id
 
 (* IDs of the channel's videos that are live right now. Search results can
    lag a stream going live by a few minutes. Costs 100 quota units. *)
@@ -121,9 +123,8 @@ let page_of_json json =
               Some
                 { author=
                     Option.value
-                      (Option.bind m.author_details
-                         ~f:(fun (a : Api_json.author_details) ->
-                           a.display_name ) )
+                      ( m.author_details
+                      >>= fun (a : Api_json.author_details) -> a.display_name )
                       ~default:"?"
                 ; text= m.snippet.display_message }
           | _ ->

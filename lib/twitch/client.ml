@@ -2,6 +2,7 @@
    as a "justinfan" guest and passes on every chat message. *)
 
 open! Core
+open Option.Monad_infix
 
 let host = "irc-ws.chat.twitch.tv"
 
@@ -77,7 +78,7 @@ let%expect_test "message_of_irc" =
 let%expect_test "message_of_irc color" =
   let show tags =
     Irc.parse (tags ^ " :foo!foo@foo.tmi.twitch.tv PRIVMSG #chan :hi")
-    |> Option.bind ~f:message_of_irc
+    >>= message_of_irc
     |> Option.iter ~f:(fun (m : Chat_merge.Chat_message.t) ->
         print_endline (Option.value m.color ~default:"(none)") )
   in

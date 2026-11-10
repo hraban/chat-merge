@@ -2,6 +2,7 @@
    source may be left out. *)
 
 open! Core
+open Option.Monad_infix
 
 let run ~serve ~bind ?twitch ?youtube () =
   Eio_main.run
@@ -13,7 +14,7 @@ let run ~serve ~bind ?twitch ?youtube () =
     exit 2 ) ;
   (* Check for the key up front, not after Twitch output has started. *)
   let youtube =
-    Option.map youtube ~f:(fun target -> (Youtube.Client.api_key env, target))
+    youtube >>| fun target -> (Youtube.Client.api_key env, target)
   in
   Output.with_sink env ~serve ~bind
   @@ fun stream ->
