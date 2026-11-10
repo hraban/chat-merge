@@ -60,7 +60,7 @@ let page =
     name.style.color = m.color ?? colorOf(m.author);
     name.textContent = m.author;
     if (m.kind === "action") div.append(p, "* ", name, " ");
-    else div.append(p, "<", name, "> ");
+    else div.append(p, name, ": ");
     for (const s of m.segments) {
       if (s.emote === undefined) { div.append(s.text); continue; }
       const img = document.createElement("img");
