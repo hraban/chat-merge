@@ -1,6 +1,6 @@
 (library
  (name chat_merge)
- (libraries core eio cohttp-eio http uri yojson)
+ (libraries core eio cstruct cohttp-eio http uri yojson)
  (inline_tests)
  (preprocess
   (pps ppx_expect)))
