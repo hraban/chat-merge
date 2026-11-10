@@ -37,8 +37,7 @@ let to_line t =
 
 (* A message without emotes: all of [text], sanitized. *)
 let plain_segments text =
-  if String.is_empty text then []
-  else [Text (Sanitize.clean text)]
+  if String.is_empty text then [] else [Text (Sanitize.clean text)]
 
 let%expect_test "to_line sanitizes chat text" =
   print_endline

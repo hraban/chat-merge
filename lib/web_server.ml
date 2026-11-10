@@ -93,12 +93,7 @@ let event_of_message (m : Chat_message.t) =
          ; ( "color"
            , Option.value_map m.color ~default:`Null ~f:(fun c -> `String c) )
          ; ( "kind"
-           , `String
-               ( match m.kind with
-               | Say ->
-                   "say"
-               | Action ->
-                   "action" ) )
+           , `String (match m.kind with Say -> "say" | Action -> "action") )
          ; ( "segments"
            , `List
                (List.map m.segments ~f:(function

@@ -42,8 +42,7 @@ type video =
 type videos = {items: video list [@default []]}
 [@@deriving of_yojson] [@@yojson.allow_extra_fields]
 
-type channel = {id: string}
-[@@deriving of_yojson] [@@yojson.allow_extra_fields]
+type channel = {id: string} [@@deriving of_yojson] [@@yojson.allow_extra_fields]
 
 type channels = {items: channel list [@default []]}
 [@@deriving of_yojson] [@@yojson.allow_extra_fields]
