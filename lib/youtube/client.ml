@@ -4,9 +4,10 @@
 
 open! Core
 
-(* Each poll costs 5 units of the default 10,000/day quota, so never poll
-   faster than this even when the server says we may. *)
-let min_poll_interval = 5.0
+(* Each stream connection costs 5 units of the default 10,000/day quota, so
+   never open them faster than this, whether reconnecting after the server
+   closed the stream or retrying after an error. *)
+let min_reconnect_interval = 5.0
 
 (* Accepts a channel handle (@name or youtube.com/@name), a bare video ID, or
    a youtube.com/watch?v=, youtube.com/live/ or youtu.be/ URL. *)
@@ -60,27 +61,41 @@ let add_message stream channel (msg : Api.message) =
     ; kind= Say
     ; segments= Chat_merge.Chat_message.plain_segments msg.text }
 
-(* Follows one stream's chat until it ends. Network and server (5xx) errors
-   are retried with the same page token; client (4xx) errors give up. *)
+(* Follows one stream's chat until it ends, reconnecting with the last page
+   token whenever the connection closes. Network and server (5xx) errors are
+   retried; client (4xx) errors give up. *)
 let follow ~clock ~client ~key ~stream video_id =
-  let rec poll ~channel ~live_chat_id page_token =
-    match Api.messages client ~key ~live_chat_id ?page_token () with
-    | page ->
-        List.iter page.messages ~f:(add_message stream channel) ;
-        if page.offline then Eio.traceln "%s: stream ended" channel
-        else (
-          Eio.Time.sleep clock
-            (Float.max min_poll_interval page.polling_interval) ;
-          poll ~channel ~live_chat_id page.next_page_token )
-    | exception (Api.Api_error {status; _} as e) when status < 500 ->
-        raise e
-    | exception (Eio.Cancel.Cancelled _ as e) ->
-        raise e
-    | exception e ->
-        Eio.traceln "%s: %s, retrying in %.0fs" channel (Exn.to_string e)
-          min_poll_interval ;
-        Eio.Time.sleep clock min_poll_interval ;
-        poll ~channel ~live_chat_id page_token
+  let listen ~channel ~live_chat_id =
+    let page_token = ref None in
+    let offline = ref false in
+    let on_page (page : Api.page) =
+      List.iter page.messages ~f:(add_message stream channel) ;
+      Option.iter page.next_page_token ~f:(fun t -> page_token := Some t) ;
+      if page.offline then offline := true
+    in
+    let rec connect () =
+      let started = Eio.Time.now clock in
+      let wait_and_reconnect () =
+        Eio.Time.sleep_until clock (started +. min_reconnect_interval) ;
+        connect ()
+      in
+      match
+        Api.stream_messages client ~key ~live_chat_id ?page_token:!page_token
+          ~f:on_page ()
+      with
+      | () when !offline ->
+          Eio.traceln "%s: stream ended" channel
+      | () ->
+          wait_and_reconnect ()
+      | exception (Api.Api_error {status; _} as e) when status < 500 ->
+          raise e
+      | exception (Eio.Cancel.Cancelled _ as e) ->
+          raise e
+      | exception e ->
+          Eio.traceln "%s: %s, reconnecting" channel (Exn.to_string e) ;
+          wait_and_reconnect ()
+    in
+    connect ()
   in
   try
     match Api.video client ~key video_id with
@@ -89,7 +104,7 @@ let follow ~clock ~client ~key ~stream video_id =
     | Some {live_chat_id= None; _} ->
         Eio.traceln "%s: not live, or chat is disabled" video_id
     | Some {channel; live_chat_id= Some live_chat_id} ->
-        poll ~channel ~live_chat_id None
+        listen ~channel ~live_chat_id
   with Api.Api_error {status; reason; message} ->
     Eio.traceln "%s: API error %d %s: %s" video_id status reason message
 

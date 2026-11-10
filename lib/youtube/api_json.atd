@@ -6,6 +6,7 @@ type error_item = {
 }
 
 type error_body = {
+  ?code : int option;
   ~errors : error_item list;
   ?message : string option;
 }
@@ -13,6 +14,9 @@ type error_body = {
 type error_response = {
   error : error_body;
 }
+
+(* Streaming endpoints wrap their error in an array. *)
+type error_responses = error_response list
 
 type video_snippet = {
   ?channel_title <json name="channelTitle"> : string option;
@@ -69,7 +73,5 @@ type message = {
 type messages = {
   ~items : message list;
   ?next_page_token <json name="nextPageToken"> : string option;
-  ~polling_interval_millis <json name="pollingIntervalMillis">
-    <ocaml default="5000"> : int;
   ?offline_at <json name="offlineAt"> : string option;
 }
