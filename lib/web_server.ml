@@ -18,6 +18,7 @@ let page =
   .m { padding: 1px 0; overflow-wrap: anywhere; }
   .twitch .p { color: #9146ff; }
   .youtube .p { color: #e00; }
+  .n { font-weight: 600; }
   .m img { height: 1.4em; vertical-align: middle; }
   #s { position: fixed; top: 4px; right: 8px; opacity: .6; font-size: 12px; }
 </style>
@@ -26,6 +27,17 @@ let page =
 <script>
   const log = document.getElementById("log");
   const status = document.getElementById("s");
+  // Twitch's default name colors. Each name gets a random one on first
+  // sight and keeps it until the page reloads.
+  const palette = ["#ff0000", "#0000ff", "#008000", "#b22222", "#ff7f50",
+    "#9acd32", "#ff4500", "#2e8b57", "#daa520", "#d2691e", "#5f9ea0",
+    "#1e90ff", "#ff69b4", "#8a2be2", "#00ff7f"];
+  const colors = new Map();
+  const colorOf = (n) => {
+    if (!colors.has(n))
+      colors.set(n, palette[Math.floor(Math.random() * palette.length)]);
+    return colors.get(n);
+  };
   const es = new EventSource("events");
   es.onopen = () => status.textContent = "live";
   es.onerror = () => status.textContent = "reconnecting…";
@@ -42,7 +54,12 @@ let page =
     p.textContent = "● ";
     // Text goes in as text nodes, never parsed as HTML. Emote ids are
     // restricted to [A-Za-z0-9_] by the server.
-    div.append(p, m.head);
+    const name = document.createElement("span");
+    name.className = "n";
+    name.style.color = colorOf(m.author);
+    name.textContent = m.author;
+    if (m.kind === "action") div.append(p, "* ", name, " ");
+    else div.append(p, "<", name, "> ");
     for (const s of m.segments) {
       if (s.emote === undefined) { div.append(s.text); continue; }
       const img = document.createElement("img");
@@ -64,14 +81,21 @@ let platform_name : Chat_message.platform -> string = function
   | Youtube ->
       "youtube"
 
-(* The SSE event for one message. [head] and [segments] already sanitize, and
+(* The SSE event for one message. [author] and [segments] are sanitized, and
    the page only ever inserts their text as text. *)
 let event_of_message (m : Chat_message.t) =
   let json =
     Yojson.Safe.to_string
       (`Assoc
          [ ("platform", `String (platform_name m.platform))
-         ; ("head", `String (Chat_message.head m))
+         ; ("author", `String (Sanitize.clean m.author))
+         ; ( "kind"
+           , `String
+               ( match m.kind with
+               | Say ->
+                   "say"
+               | Action ->
+                   "action" ) )
          ; ( "segments"
            , `List
                (List.map m.segments ~f:(function
@@ -93,7 +117,7 @@ let%expect_test "event_of_message" =
        ; kind= Say
        ; segments= [Emote {id= "25"; name= "<"}; Text "script>\"hi\""] } ) ;
   [%expect
-    {| data: {"platform":"twitch","head":"<a> ","segments":[{"emote":"25","text":"<"},{"text":"script>\"hi\""}]} |}]
+    {| data: {"platform":"twitch","author":"a","kind":"say","segments":[{"emote":"25","text":"<"},{"text":"script>\"hi\""}]} |}]
 
 (* One queue per connected browser, so a slow visitor can't hold up the rest. *)
 type t = {mutable clients: string Eio.Stream.t list}

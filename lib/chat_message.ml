@@ -32,17 +32,6 @@ let to_line t =
   in
   Sanitize.clean line
 
-(* The "<author> " / "* author " part that precedes the text, sanitized. *)
-let head t =
-  let h =
-    match t.kind with
-    | Say ->
-        sprintf "<%s> " t.author
-    | Action ->
-        sprintf "* %s " t.author
-  in
-  Sanitize.clean h
-
 (* A message without emotes: all of [text], sanitized. *)
 let plain_segments text =
   if String.is_empty text then []
