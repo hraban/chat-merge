@@ -35,7 +35,20 @@ let message_of_irc (msg : Irc.message) : Chat_merge.Chat_message.t option =
             []
       in
       let segments = Emote.segments ~text emotes in
-      Some {platform= Twitch; channel; author; text; kind; segments}
+      let color =
+        (* Empty when the user never picked one. Checked strictly, as it ends
+           up in the page's CSS. *)
+        match List.Assoc.find msg.tags ~equal:String.equal "color" with
+        | Some c
+          when String.length c = 7
+               && Char.equal c.[0] '#'
+               && String.for_all (String.drop_prefix c 1) ~f:Char.is_hex_digit
+          ->
+            Some (String.lowercase c)
+        | _ ->
+            None
+      in
+      Some {platform= Twitch; channel; author; color; text; kind; segments}
   | _ ->
       None
 
@@ -60,6 +73,22 @@ let%expect_test "message_of_irc" =
   [%expect {| * foo waves |}] ;
   show ":tmi.twitch.tv 001 justinfan123 :Welcome, GLHF!" ;
   [%expect {| (no message) |}]
+
+let%expect_test "message_of_irc color" =
+  let show tags =
+    Irc.parse (tags ^ " :foo!foo@foo.tmi.twitch.tv PRIVMSG #chan :hi")
+    |> Option.bind ~f:message_of_irc
+    |> Option.iter ~f:(fun (m : Chat_merge.Chat_message.t) ->
+        print_endline (Option.value m.color ~default:"(none)") )
+  in
+  show "@color=#8FD3FF" ;
+  [%expect {| #8fd3ff |}] ;
+  show "@color=" ;
+  [%expect {| (none) |}] ;
+  show "@color=red;x=1" ;
+  [%expect {| (none) |}] ;
+  show "@color=#12345g" ;
+  [%expect {| (none) |}]
 
 let handle_line ws stream line =
   let line = String.chop_suffix_if_exists line ~suffix:"\r" in

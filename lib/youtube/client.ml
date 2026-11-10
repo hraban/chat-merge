@@ -59,6 +59,7 @@ let add_message stream channel (msg : Api.message) =
     ; author= msg.author
     ; text= msg.text
     ; kind= Say
+    ; color= None
     ; segments= Chat_merge.Chat_message.plain_segments msg.text }
 
 (* Follows one stream's chat until it ends, reconnecting with the last page

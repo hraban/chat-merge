@@ -27,8 +27,8 @@ let page =
 <script>
   const log = document.getElementById("log");
   const status = document.getElementById("s");
-  // Twitch's default name colors. Each name gets a random one on first
-  // sight and keeps it until the page reloads.
+  // Twitch's default name colors, for chatters who haven't picked their own.
+  // Each name gets a random one on first sight and keeps it until reload.
   const palette = ["#ff0000", "#0000ff", "#008000", "#b22222", "#ff7f50",
     "#9acd32", "#ff4500", "#2e8b57", "#daa520", "#d2691e", "#5f9ea0",
     "#1e90ff", "#ff69b4", "#8a2be2", "#00ff7f"];
@@ -56,7 +56,8 @@ let page =
     // restricted to [A-Za-z0-9_] by the server.
     const name = document.createElement("span");
     name.className = "n";
-    name.style.color = colorOf(m.author);
+    // The chatter's own Twitch color if they set one, else a random one.
+    name.style.color = m.color ?? colorOf(m.author);
     name.textContent = m.author;
     if (m.kind === "action") div.append(p, "* ", name, " ");
     else div.append(p, "<", name, "> ");
@@ -89,6 +90,8 @@ let event_of_message (m : Chat_message.t) =
       (`Assoc
          [ ("platform", `String (platform_name m.platform))
          ; ("author", `String (Sanitize.clean m.author))
+         ; ( "color"
+           , Option.value_map m.color ~default:`Null ~f:(fun c -> `String c) )
          ; ( "kind"
            , `String
                ( match m.kind with
@@ -113,11 +116,12 @@ let%expect_test "event_of_message" =
        { platform= Twitch
        ; channel= "#c"
        ; author= "a"
+       ; color= Some "#1e90ff"
        ; text= "<script>\"hi\""
        ; kind= Say
        ; segments= [Emote {id= "25"; name= "<"}; Text "script>\"hi\""] } ) ;
   [%expect
-    {| data: {"platform":"twitch","author":"a","kind":"say","segments":[{"emote":"25","text":"<"},{"text":"script>\"hi\""}]} |}]
+    {| data: {"platform":"twitch","author":"a","color":"#1e90ff","kind":"say","segments":[{"emote":"25","text":"<"},{"text":"script>\"hi\""}]} |}]
 
 (* One queue per connected browser, so a slow visitor can't hold up the rest. *)
 type t = {mutable clients: string Eio.Stream.t list}

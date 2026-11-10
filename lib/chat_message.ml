@@ -16,6 +16,9 @@ type t =
         (** As shown to the user: "#chan" on Twitch, the channel title on
           YouTube. *)
   ; author: string
+  ; color: string option
+        (** The author's chosen name color as "#rrggbb", if the platform has
+          one. *)
   ; text: string
   ; kind: kind
   ; segments: segment list }
@@ -43,6 +46,7 @@ let%expect_test "to_line sanitizes chat text" =
        { platform= Youtube
        ; channel= "Some Channel"
        ; author= "mallory"
+       ; color= None
        ; text= "\027[2Jgotcha\xe2\x80\xae"
        ; kind= Say
        ; segments= [] } ) ;
