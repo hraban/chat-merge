@@ -12,11 +12,11 @@
      --with-base-unix
      %{pkg:base-unix:installed}
      --with-cmdliner
-     %{pkg:cmdliner:installed})))))
+     false)))))
 
 (depends
  (all_platforms
-  (ocaml ocamlfind ocamlbuild topkg base-unix cmdliner)))
+  (ocaml ocamlfind ocamlbuild topkg base-unix)))
 
 (source
  (fetch

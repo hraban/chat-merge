@@ -22,11 +22,11 @@ let uri ~key endpoint params =
    (from streaming endpoints) that object wrapped in an array. *)
 let api_error ~status body =
   let error =
-    match Api_json.error_response_of_json body with
+    match Api_json.error_response_of_yojson (Yojson.Safe.from_string body) with
     | r ->
         Some r.Api_json.error
     | exception _ -> (
-      match Api_json.error_responses_of_json body with
+      match Api_json.error_responses_of_yojson (Yojson.Safe.from_string body) with
       | r :: _ ->
           Some r.Api_json.error
       | [] | (exception _) ->
@@ -46,9 +46,9 @@ let api_error ~status body =
   in
   Api_error {status; reason; message}
 
-(* Decodes the response with [of_json]. A body that doesn't decode is an
+(* Decodes the response with [of_yojson]. A body that doesn't decode is an
    [Api_error] like any other. *)
-let get of_json client ~key endpoint params =
+let get of_yojson client ~key endpoint params =
   Eio.Switch.run
   @@ fun sw ->
   let resp, body =
@@ -57,7 +57,7 @@ let get of_json client ~key endpoint params =
   let body = Eio.Buf_read.(parse_exn take_all) body ~max_size:(16 lsl 20) in
   match Cohttp.Code.code_of_status (Cohttp.Response.status resp) with
   | 200 -> (
-    try of_json body
+    try of_yojson (Yojson.Safe.from_string body)
     with e ->
       raise (Api_error {status= 200; reason= "decode"; message= Exn.to_string e})
     )
@@ -70,7 +70,7 @@ type video = {channel: string; live_chat_id: string option}
    is currently live with chat enabled. Costs 1 quota unit. *)
 let video client ~key id =
   let r =
-    get Api_json.videos_of_json client ~key "videos"
+    get Api_json.videos_of_yojson client ~key "videos"
       [("part", "snippet,liveStreamingDetails"); ("id", id)]
   in
   List.hd r.items
@@ -85,7 +85,7 @@ let video client ~key id =
    channel. Costs 1 quota unit. *)
 let channel_id_of_handle client ~key handle =
   let r =
-    get Api_json.channels_of_json client ~key "channels"
+    get Api_json.channels_of_yojson client ~key "channels"
       [("part", "id"); ("forHandle", handle)]
   in
   List.hd r.items |> Option.map ~f:(fun (c : Api_json.channel) -> c.id)
@@ -94,7 +94,7 @@ let channel_id_of_handle client ~key handle =
    lag a stream going live by a few minutes. Costs 100 quota units. *)
 let live_video_ids client ~key channel_id =
   let r =
-    get Api_json.search_results_of_json client ~key "search"
+    get Api_json.search_results_of_yojson client ~key "search"
       [ ("part", "id")
       ; ("channelId", channel_id)
       ; ("eventType", "live")

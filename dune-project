@@ -29,4 +29,4 @@
   tls-eio
   uri
   yojson
-  atdml))
+  ppx_yojson_conv))
