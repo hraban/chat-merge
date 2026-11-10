@@ -4,6 +4,7 @@
   chat_merge
   core
   eio
+  cstruct
   cohttp
   cohttp-eio
   uri

@@ -111,70 +111,41 @@ type page =
         (** Resume from here if the connection drops. *)
   ; offline: bool  (** The stream has ended; no more messages will come. *) }
 
-let is_blank = function ' ' | '\t' | '\n' | '\r' -> true | _ -> false
+(* A lexbuf that reads from [r], handing the lexer whatever bytes are already
+   buffered rather than waiting to fill its whole buffer, so values are
+   decoded as soon as they have arrived. [End_of_file] from [r] propagates. *)
+let lexbuf_of_buf_read r =
+  Lexing.from_function (fun bytes n ->
+      Eio.Buf_read.ensure r 1 ;
+      let available = Eio.Buf_read.peek r in
+      let len = Int.min n (Cstruct.length available) in
+      Cstruct.blit_to_bytes available 0 bytes 0 len ;
+      Eio.Buf_read.consume r len ;
+      len )
 
-(* The raw text of the JSON object starting at the next non-blank character,
-   found by matching braces without decoding it. *)
-let read_object r =
-  let open Eio.Buf_read in
-  skip_while is_blank r ;
-  char '{' r ;
-  let buf = Buffer.create 4096 in
-  Buffer.add_char buf '{' ;
-  let rec go ~depth ~in_string ~escaped =
-    let c = any_char r in
-    Buffer.add_char buf c ;
-    match (in_string, c) with
-    | true, _ when escaped ->
-        go ~depth ~in_string ~escaped:false
-    | true, '\\' ->
-        go ~depth ~in_string ~escaped:true
-    | true, '"' | false, '"' ->
-        go ~depth ~in_string:(not in_string) ~escaped:false
-    | false, ('{' | '[') ->
-        go ~depth:(depth + 1) ~in_string ~escaped
-    | false, ('}' | ']') when depth = 1 ->
-        ()
-    | false, ('}' | ']') ->
-        go ~depth:(depth - 1) ~in_string ~escaped
-    | _ ->
-        go ~depth ~in_string ~escaped
-  in
-  go ~depth:1 ~in_string:false ~escaped:false ;
-  Buffer.contents buf
-
-(* Calls [f] on each object of a JSON array of objects as soon as it has
-   arrived, until the array ends or [f] returns [false]. This is how Google
-   APIs frame a server-streamed RPC over REST. A connection that closes
-   mid-array raises [End_of_file]. *)
+(* Calls [f] on each element of a JSON array as soon as it has arrived, until
+   the array ends or [f] returns [false]. This is how Google APIs frame a
+   server-streamed RPC over REST. A connection that closes mid-array raises
+   [End_of_file]. *)
 let iter_json_array r ~f =
-  let open Eio.Buf_read in
-  skip_while is_blank r ;
-  char '[' r ;
-  skip_while is_blank r ;
-  if Option.equal Char.equal (peek_char r) (Some ']') then ()
-  else
-    let rec loop () =
-      if f (read_object r) then (
-        skip_while is_blank r ;
-        match any_char r with
-        | ',' ->
-            loop ()
-        | ']' ->
-            ()
-        | c ->
-            failwithf "expected ',' or ']' in JSON array, got %C" c () )
-    in
-    loop ()
+  let exception Stop in
+  let lexbuf = lexbuf_of_buf_read r in
+  let v = Yojson.init_lexer () in
+  try
+    Yojson.Safe.read_sequence
+      (fun () v lexbuf ->
+        if not (f (Yojson.Safe.read_json v lexbuf)) then raise Stop )
+      () v lexbuf
+  with Stop -> ()
 
 let page_of_json json =
   (* An error after the stream started arrives as an element of its own. *)
-  match Api_json.error_response_of_json json with
+  match Api_json.error_response_of_yojson json with
   | r ->
       let status = Option.value r.Api_json.error.code ~default:500 in
-      raise (api_error ~status json)
+      raise (api_error ~status (Yojson.Safe.to_string json))
   | exception _ -> (
-    match Api_json.messages_of_json json with
+    match Api_json.messages_of_yojson json with
     | r ->
         let message (m : Api_json.message) =
           match m.snippet.kind with
@@ -230,6 +201,7 @@ let%expect_test "iter_json_array" =
     let r = Eio.Buf_read.of_string s in
     match
       iter_json_array r ~f:(fun o ->
+          let o = Yojson.Safe.to_string o in
           print_endline o ;
           not (String.equal o {|{"stop":1}|}) )
     with
