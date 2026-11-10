@@ -15,8 +15,15 @@ type error_body =
 type error_response = {error: error_body}
 [@@deriving of_yojson] [@@yojson.allow_extra_fields]
 
-(* Streaming endpoints wrap their error in an array. *)
-type error_responses = error_response list [@@deriving of_yojson]
+(* The body of a failed request: the usual error object, or (from streaming
+   endpoints) that object wrapped in an array. *)
+type error_payload = Single of error_response | Many of error_response list
+
+let error_payload_of_yojson = function
+  | `List _ as json ->
+      Many (list_of_yojson error_response_of_yojson json)
+  | json ->
+      Single (error_response_of_yojson json)
 
 type video_snippet =
   {channel_title: string option [@key "channelTitle"] [@yojson.option]}

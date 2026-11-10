@@ -18,19 +18,14 @@ let base_url =
 let uri ~key endpoint params =
   Uri.with_query' (Uri.of_string (base_url ^ endpoint)) (("key", key) :: params)
 
-(* The [Api_error] for a failed request's body: the usual error object, or
-   (from streaming endpoints) that object wrapped in an array. *)
+(* The [Api_error] for a failed request's body. *)
 let api_error ~status body =
   let error =
-    match Api_json.error_response_of_yojson (Yojson.Safe.from_string body) with
-    | r ->
+    match Api_json.error_payload_of_yojson (Yojson.Safe.from_string body) with
+    | Api_json.Single r | Api_json.Many (r :: _) ->
         Some r.Api_json.error
-    | exception _ -> (
-      match Api_json.error_responses_of_yojson (Yojson.Safe.from_string body) with
-      | r :: _ ->
-          Some r.Api_json.error
-      | [] | (exception _) ->
-          None )
+    | Api_json.Many [] | (exception _) ->
+        None
   in
   let reason =
     match error with
