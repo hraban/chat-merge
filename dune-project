@@ -8,7 +8,7 @@
 
 (package
  (name chat_merge)
- (synopsis "Read Twitch chat anonymously over WebSocket")
+ (synopsis "Merge Twitch and YouTube live chat into one stream")
  (depends
   ocaml
   dune
@@ -18,13 +18,16 @@
   cohttp-eio
   core
   core_unix
+  digestif
   domain-name
   eio
   eio_main
+  eqaf
   http
   mirage-crypto-rng
   ppx_blob
   ppx_expect
+  ppx_jane
   ppx_let
   tls
   tls-eio

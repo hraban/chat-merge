@@ -4,7 +4,14 @@
   chat_merge
   core
   eio
-  base64
+  cohttp
+  cohttp-eio
+  http
+  uri
+  yojson
+  ppx_yojson_conv_lib
+  digestif
+  eqaf
   mirage-crypto-rng
   tls
   tls-eio
@@ -12,4 +19,4 @@
   domain-name)
  (inline_tests)
  (preprocess
-  (pps ppx_expect)))
+  (pps ppx_jane ppx_yojson_conv)))

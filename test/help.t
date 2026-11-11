@@ -10,6 +10,8 @@ Test exists here to ensure that _some_ help output is printed on -help.  Actual 
   === subcommands ===
   
     stream                     . Interleave Twitch and YouTube chat as it arrives
+    twitch-auth-url            . Print the URL that grants the app access to a
+                                 user's Twitch chat
     version                    . print version information
     help                       . explain a given subcommand (perhaps recursively)
   

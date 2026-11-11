@@ -4,15 +4,43 @@
 open! Core
 open Option.Monad_infix
 
-let run ~serve ~bind ?twitch ?youtube () =
+let usage_error env msg =
+  Eio.Flow.copy_string ("stream: " ^ msg ^ "\n") (Eio.Stdenv.stderr env) ;
+  exit 2
+
+let run ~serve ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as ?youtube
+    () =
   Eio_main.run
   @@ fun env ->
   Mirage_crypto_rng_unix.use_default () ;
-  if Option.is_none twitch && Option.is_none youtube then (
-    Eio.Flow.copy_string "stream: pass --twitch and/or --youtube\n"
-      (Eio.Stdenv.stderr env) ;
-    exit 2 ) ;
-  (* Check for the key up front, not after Twitch output has started. *)
+  if Option.is_none twitch && Option.is_none youtube then
+    usage_error env "pass --twitch and/or --youtube" ;
+  (* Check for credentials up front, not after output has started. *)
+  let twitch =
+    twitch
+    >>| fun channel ->
+    let callback =
+      match twitch_callback with
+      | Some url ->
+          url
+      | None ->
+          usage_error env "--twitch needs --twitch-callback"
+    in
+    let client_id, client_secret = Twitch.Client.credentials env in
+    let listen =
+      match Eio.Net.getaddrinfo_stream (Eio.Stdenv.net env) bind with
+      | `Tcp (addr, _) :: _ ->
+          `Tcp (addr, twitch_port)
+      | _ ->
+          failwithf "--bind: cannot resolve %S" bind ()
+    in
+    ( { Twitch.Client.client_id
+      ; client_secret
+      ; callback
+      ; listen
+      ; read_as= twitch_as }
+    , channel )
+  in
   let youtube =
     youtube >>| fun target -> (Youtube.Client.api_key env, target)
   in
@@ -20,8 +48,8 @@ let run ~serve ~bind ?twitch ?youtube () =
   @@ fun stream ->
   Eio.Fiber.both
     (fun () ->
-      Option.iter twitch ~f:(fun channel ->
-          Twitch.Client.follow env ~stream [channel] ) )
+      Option.iter twitch ~f:(fun (config, channel) ->
+          Twitch.Client.follow env ~config ~stream [channel] ) )
     (fun () ->
       Option.iter youtube ~f:(fun (key, target) ->
           Youtube.Client.follow_targets env ~key ~stream [target] ) )
