@@ -2,6 +2,8 @@ Following YouTube chat over liveChatMessages.stream, against a fake API server
 (fake_yt.py) that streams its responses in chunks.
 
   $ python3 fake_yt.py > port 2>> requests &
+  $ pid="$!"
+  $ trap "kill $pid" EXIT
   $ while [ ! -s port ]; do sleep 0.05; done
   $ export YOUTUBE_API_BASE_URL=http://127.0.0.1:$(cat port)/
   $ export YOUTUBE_API_KEY=dummy
@@ -65,5 +67,3 @@ A non-200 response with an array-wrapped error body.
   -- requests
   GET /videos id=hdrErr part=snippet,liveStreamingDetails
   GET /liveChat/messages/stream liveChatId=chat-hdrErr part=snippet,authorDetails
-
-  $ kill %1
