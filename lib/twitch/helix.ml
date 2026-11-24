@@ -98,7 +98,6 @@ let user_ids t logins =
     (decode Helix_json.users_of_yojson body).data
     |> List.map ~f:(fun (u : Helix_json.user) -> (u.login, u.id))
 
-(* Every EventSub subscription the app has, following pagination. *)
 let subscriptions t =
   let rec go after acc =
     let _, body =

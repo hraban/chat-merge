@@ -35,7 +35,6 @@ let to_line t =
   in
   Sanitize.clean line
 
-(* A message without emotes: all of [text], sanitized. *)
 let plain_segments text =
   if String.is_empty text then [] else [Text (Sanitize.clean text)]
 
