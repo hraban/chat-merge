@@ -12,23 +12,22 @@ Envvars:
 
 ## Twitch
 
-Twitch chat is read through the Helix API: an EventSub `channel.chat.message`
-subscription with an app access token (client credentials), delivered as
-webhooks. That needs:
+Twitch chat is read through the Helix API.
 
-1. A Twitch app (dev.twitch.tv console) whose id and secret are in
-   `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`.
+Requirements:
+
+1. A Twitch app ("https://dev.twitch.tv"), credentials in env
 2. A one-time grant from the broadcaster (`channel:bot`) and from the user chat
-   is read as (`user:read:chat`, `user:bot`; by default that is the
-   broadcaster too, otherwise pass `--twitch-as LOGIN`). `chat twitch-auth-url
-   --redirect-uri URI` prints the link to open; the redirect URI must be
-   registered for the app.
+   is read as (the broadcaster by default, otherwise pass `--twitch-as MyBotUser`):
+
+       $ chat twitch-auth-url --redirect-uri https://my-bot.example.com
+
 3. A public HTTPS URL on port 443 (reverse proxy, tunnel, ...) that forwards
    to the local webhook listener:
 
-       chat stream --twitch harlybarluy \
-         --twitch-callback https://chat.example.org/twitch \
-         --twitch-port 8081 --serve 8080
+       $ chat stream --twitch harlybarluy \
+         --twitch-callback https://my-bot.example.com/twitch \
+         --twitch-port 443 --serve 8080
 
 Developed for:
 
