@@ -12,8 +12,10 @@ let heartbeat_seconds = 15.
 (* Static files, compiled into the binary: request path -> content type, body. *)
 let assets =
   [ ("/", ("text/html; charset=utf-8", [%blob "assets/index.html"]))
-  ; ("/style.css", ("text/css; charset=utf-8", [%blob "assets/style.css"]))
-  ; ("/app.js", ("text/javascript; charset=utf-8", [%blob "assets/app.js"])) ]
+  ; ("/app.js", ("text/javascript; charset=utf-8", [%blob "assets/app.js"]))
+  ; ( "/robots.txt"
+    , ("text/plain; charset=us-ascii", [%blob "assets/robots.txt"]) )
+  ; ("/style.css", ("text/css; charset=utf-8", [%blob "assets/style.css"])) ]
 
 let platform_name : Chat_message.platform -> string = function
   | Twitch ->
