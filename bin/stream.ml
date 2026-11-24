@@ -15,6 +15,9 @@ let run ~serve ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as ?youtube
   Mirage_crypto_rng_unix.use_default () ;
   if Option.is_none twitch && Option.is_none youtube then
     usage_error env "pass --twitch and/or --youtube" ;
+  (* Resolved at most once, and only if something listens on it, so a bad
+     --bind doesn't fail a run that never uses it. *)
+  let addr = lazy (Output.resolve_bind env bind) in
   (* Check for credentials up front, not after output has started. *)
   let twitch =
     twitch
@@ -27,13 +30,7 @@ let run ~serve ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as ?youtube
           usage_error env "--twitch needs --twitch-callback"
     in
     let client_id, client_secret = Twitch.Client.credentials env in
-    let listen =
-      match Eio.Net.getaddrinfo_stream (Eio.Stdenv.net env) bind with
-      | `Tcp (addr, _) :: _ ->
-          `Tcp (addr, twitch_port)
-      | _ ->
-          failwithf "--bind: cannot resolve %S" bind ()
-    in
+    let listen = `Tcp (Lazy.force addr, twitch_port) in
     ( { Twitch.Client.client_id
       ; client_secret
       ; callback
@@ -44,7 +41,7 @@ let run ~serve ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as ?youtube
   let youtube =
     youtube >>| fun target -> (Youtube.Client.api_key env, target)
   in
-  Output.with_sink env ~serve ~bind
+  Output.with_sink env ~serve ~addr
   @@ fun stream ->
   Eio.Fiber.both
     (fun () ->
