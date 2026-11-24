@@ -10,7 +10,7 @@ let run ~serve ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as ?youtube
   @@ fun env ->
   Mirage_crypto_rng_unix.use_default () ;
   if Option.is_none twitch && Option.is_none youtube then
-    Output.usage_error env "pass --twitch and/or --youtube" ;
+    Usage.error env "pass --twitch and/or --youtube" ;
   (* Resolved at most once, and only if something listens on it, so a bad
      --bind doesn't fail a run that never uses it. *)
   let addr = lazy (Output.resolve_bind env bind) in
@@ -23,7 +23,7 @@ let run ~serve ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as ?youtube
       | Some url ->
           url
       | None ->
-          Output.usage_error env "--twitch needs --twitch-callback"
+          Usage.error env "--twitch needs --twitch-callback"
     in
     let client_id, client_secret = Twitch.Client.credentials env in
     let listen = `Tcp (Lazy.force addr, twitch_port) in

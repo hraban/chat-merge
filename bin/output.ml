@@ -41,21 +41,14 @@ let with_web_sink env ~addr ~port produce =
     (fun () -> Web_server.run env ~addr ~port ~stream)
     (fun () -> produce stream)
 
-let usage_error env fmt =
-  ksprintf
-    (fun msg ->
-      Eio.Flow.copy_string ("stream: " ^ msg ^ "\n") (Eio.Stdenv.stderr env) ;
-      exit 2 )
-    fmt
-
 let resolve_bind env bind =
   match Eio.Net.getaddrinfo_stream (Eio.Stdenv.net env) bind with
   | `Tcp (addr, _) :: _ ->
       addr
   | [] | `Unix _ :: _ ->
-      usage_error env "--bind: no address found for %S" bind
+      Usage.error env "--bind: no address found for %S" bind
   | exception Eio.Io (Eio.Net.E (Address_lookup_failed _), _) ->
-      usage_error env "--bind: cannot resolve %S" bind
+      Usage.error env "--bind: cannot resolve %S" bind
 
 (* Picks the sink from the --serve flag. [addr] is only forced when serving. *)
 let with_sink env ~serve ~addr produce =
