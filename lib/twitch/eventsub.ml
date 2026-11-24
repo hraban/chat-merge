@@ -4,7 +4,6 @@
    https://dev.twitch.tv/docs/eventsub/handling-webhook-events/ *)
 
 open! Core
-open Option.Monad_infix
 
 (* Notifications older than this are refused, as are repeats of one already
    seen, so a captured request can't be replayed. *)
@@ -45,7 +44,8 @@ let parse_timestamp s =
 let%expect_test "parse_timestamp" =
   let show s =
     print_s
-      [%sexp (parse_timestamp s >>| Time_ns.to_string_utc : string option)]
+      [%sexp
+        (Option.map (parse_timestamp s) ~f:Time_ns.to_string_utc : string option)]
   in
   show "2026-11-10T12:00:00.123456789Z" ;
   show "2026-11-10T12:00:00Z" ;

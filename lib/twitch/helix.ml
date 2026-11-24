@@ -5,6 +5,8 @@
 open! Core
 open Option.Monad_infix
 
+let ( let+ ) = ( >>| )
+
 type error = {status: int; message: string}
 
 exception Api_error of error
@@ -27,7 +29,8 @@ let https_client env =
   let tls_config = ok_or_fail (Tls.Config.client ~authenticator ()) in
   let https uri raw =
     let host =
-      Uri.host uri >>| fun h -> Domain_name.(host_exn (of_string_exn h))
+      let+ h = Uri.host uri in
+      Domain_name.(host_exn (of_string_exn h))
     in
     Tls_eio.client_of_flow ?host tls_config raw
   in

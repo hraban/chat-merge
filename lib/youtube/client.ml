@@ -3,7 +3,8 @@
    Needs an API key in $YOUTUBE_API_KEY. *)
 
 open! Core
-open Option.Monad_infix
+
+let ( let+ ) = Option.( >>| )
 
 (* Each stream connection costs 5 units of the default 10,000/day quota, so
    never open them faster than this, whether reconnecting after the server
@@ -116,7 +117,8 @@ let https ~authenticator =
   let tls_config = ok_or_fail (Tls.Config.client ~authenticator ()) in
   fun uri raw ->
     let host =
-      Uri.host uri >>| fun h -> Domain_name.(host_exn (of_string_exn h))
+      let+ h = Uri.host uri in
+      Domain_name.(host_exn (of_string_exn h))
     in
     Tls_eio.client_of_flow ?host tls_config raw
 

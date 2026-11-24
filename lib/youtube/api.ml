@@ -84,7 +84,8 @@ let channel_id_of_handle client ~key handle =
     get Api_json.channels_of_yojson client ~key "channels"
       [("part", "id"); ("forHandle", handle)]
   in
-  List.hd r.items >>| fun (c : Api_json.channel) -> c.id
+  let+ (c : Api_json.channel) = List.hd r.items in
+  c.id
 
 (* IDs of the channel's videos that are live right now. Search results can
    lag a stream going live by a few minutes. Costs 100 quota units. *)

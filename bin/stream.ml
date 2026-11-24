@@ -2,7 +2,8 @@
    source may be left out. *)
 
 open! Core
-open Option.Monad_infix
+
+let ( let+ ) = Option.( >>| )
 
 let run ~serve ~port ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as
     ?youtube () =
@@ -16,8 +17,7 @@ let run ~serve ~port ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as
   let addr = lazy (Output.resolve_bind env bind) in
   (* Check for credentials up front, not after output has started. *)
   let twitch =
-    twitch
-    >>| fun channel ->
+    let+ channel = twitch in
     let callback =
       match twitch_callback with
       | Some url ->
@@ -35,7 +35,8 @@ let run ~serve ~port ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as
     , channel )
   in
   let youtube =
-    youtube >>| fun target -> (Youtube.Client.api_key env, target)
+    let+ target = youtube in
+    (Youtube.Client.api_key env, target)
   in
   Output.with_sink env ~serve ~port ~addr
   @@ fun stream ->
