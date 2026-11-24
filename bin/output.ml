@@ -3,10 +3,9 @@
 open! Core
 open Chat_merge
 
-(* Runs [produce] with a fresh stream and prints each message on stdout as it
-   arrives, until [produce] returns and everything still queued is printed. *)
-let with_stdout_sink env produce =
-  let stream = Eio.Stream.create 1024 in
+(* Runs [produce] and prints each message on [stream] on stdout as it arrives,
+   until [produce] returns and everything still queued is printed. *)
+let with_stdout_sink env ~stream produce =
   let out = Eio.Stdenv.stdout env in
   (* Protected so cancellation never leaves half a line on stdout. *)
   let print m =
@@ -25,7 +24,7 @@ let with_stdout_sink env produce =
         loop ()
       in
       loop () )
-    (fun () -> produce stream) ;
+    produce ;
   (* Fiber.first cancelled the printer; flush what it hadn't got to yet. *)
   let rec drain () =
     Option.iter (Eio.Stream.take_nonblocking stream) ~f:(fun m ->
@@ -33,22 +32,19 @@ let with_stdout_sink env produce =
   in
   drain ()
 
-let listening env ~flag ~addr ~port f =
-  try f ()
-  with Eio.Io (Eio.Exn.X (Eio_unix.Unix_error (EADDRINUSE, _, _)), _) ->
-    Usage.error env "%s: %s port %d already in use" flag
-      (Format.asprintf "%a" Eio.Net.Ipaddr.pp addr)
-      port
-
-(* Like [with_stdout_sink], but serves the messages to browsers on
-   [addr]:[port] instead; runs until [produce] returns. *)
-let with_web_sink env ~addr ~port produce =
-  let stream = Eio.Stream.create 1024 in
-  Eio.Fiber.first
-    (fun () ->
-      listening env ~flag:"--port" ~addr ~port (fun () ->
-          Web_server.run env ~addr ~port ~stream ) )
-    (fun () -> produce stream)
+(* Listens on [addr]:[port] until [sw] finishes. *)
+let listen env ~sw ~addr ~port =
+  match
+    Eio.Net.listen (Eio.Stdenv.net env) ~sw ~reuse_addr:true ~backlog:32
+      (`Tcp (addr, port))
+  with
+  | socket ->
+      Eio.traceln "listening on port %d of %a" port Eio.Net.Ipaddr.pp addr ;
+      socket
+  | exception Eio.Io (Eio.Exn.X (Eio_unix.Unix_error (EADDRINUSE, _, _)), _) ->
+      Usage.error env "--port: %s port %d already in use"
+        (Format.asprintf "%a" Eio.Net.Ipaddr.pp addr)
+        port
 
 let resolve_bind env bind =
   match Eio.Net.getaddrinfo_stream (Eio.Stdenv.net env) bind with
@@ -59,12 +55,11 @@ let resolve_bind env bind =
   | exception Eio.Io (Eio.Net.E (Address_lookup_failed _), _) ->
       Usage.error env "--bind: cannot resolve %S" bind
 
-(* Picks the sink from the --serve flag. [addr] is only forced when serving. *)
-let with_sink env ~serve ~port ~addr produce =
-  match serve with
-  | false ->
-      with_stdout_sink env produce
-  | true ->
-      let addr = Lazy.force addr in
-      Eio.traceln "serving on port %d of %a" port Eio.Net.Ipaddr.pp addr ;
-      with_web_sink env ~addr ~port produce
+(* Runs [produce], sending the messages on [stream] to the chat page [web] if
+   given, else to stdout. *)
+let with_sink env ~web ~stream produce =
+  match web with
+  | None ->
+      with_stdout_sink env ~stream produce
+  | Some web ->
+      Eio.Fiber.first (fun () -> Web_server.pump web stream) produce

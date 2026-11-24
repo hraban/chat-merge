@@ -23,11 +23,13 @@ Requirements:
        $ chat twitch-auth-url --redirect-uri https://my-bot.example.com
 
 3. A public HTTPS URL on port 443 (reverse proxy, tunnel, ...) that forwards
-   to the local webhook listener:
+   to `--port` (default 8080). Twitch posts to `/twitch/eventsub` under it;
+   forwarding only `/twitch/` keeps the chat page itself private:
 
        $ chat stream --twitch harlybarluy \
-         --twitch-callback https://my-bot.example.com/twitch \
-         --twitch-port 443 --serve
+         --public-url https://my-bot.example.com --serve
+
+The web page (with `--serve`) and the Twitch webhooks share the one port.
 
 Developed for:
 

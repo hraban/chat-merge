@@ -1,6 +1,7 @@
-(* Serves chat messages to browsers: "/" and its stylesheet and script are
-   static files, "/events" a Server-Sent Events stream of every message that
-   arrives while connected. *)
+(* The one HTTP listener, and the chat page it serves: "/" and its stylesheet
+   and script are static files, "/events" a Server-Sent Events stream of every
+   message that arrives while connected. Other parts (Twitch webhooks) mount
+   their own routes next to it. *)
 
 open! Core
 
@@ -59,6 +60,15 @@ let%expect_test "event_of_message" =
 (* One queue per connected browser, so a slow visitor can't hold up the rest. *)
 type t = {mutable clients: string Eio.Stream.t list}
 
+let create () = {clients= []}
+
+(* Answers one request; see [serve]. *)
+type handler =
+     Cohttp_eio.Server.conn
+  -> Http.Request.t
+  -> Cohttp_eio.Server.body
+  -> Cohttp_eio.Server.response_action
+
 let broadcast t event =
   List.iter t.clients ~f:(fun q ->
       (* Single domain: no one can fill the queue between check and add, so
@@ -107,7 +117,12 @@ let respond ~status ~headers body =
         Eio.Buf_write.string oc body ;
         Eio.Buf_write.flush oc )
 
-let callback t env _conn (req : Http.Request.t) _body =
+let not_found : handler =
+ fun _conn _req _body -> respond ~status:`Not_found ~headers:[] "not found\n"
+
+(* The chat page. Answers 404 for any path that isn't part of it. *)
+let handler t env : handler =
+ fun conn (req : Http.Request.t) body ->
   match (req.meth, Uri.path (Uri.of_string req.resource)) with
   | `GET, "/events" ->
       `Expert
@@ -134,32 +149,29 @@ let callback t env _conn (req : Http.Request.t) _body =
                  connect-src 'self'; img-src https://static-cdn.jtvnw.net" ) ]
           body
     | None ->
-        respond ~status:`Not_found ~headers:[] "not found\n" )
+        not_found conn req body )
   | _ ->
-      respond ~status:`Not_found ~headers:[] "not found\n"
+      not_found conn req body
 
-(* Serves on [addr:port] and forwards every message taken from [stream] to all
-   connected browsers. Runs until cancelled. *)
-let run env ~addr ~port ~(stream : Chat_message.t Eio.Stream.t) =
-  Eio.Switch.run
-  @@ fun sw ->
-  let t = {clients= []} in
-  let socket =
-    Eio.Net.listen (Eio.Stdenv.net env) ~sw ~reuse_addr:true ~backlog:32
-      (`Tcp (addr, port))
+(* Forwards every message taken from [stream] to all connected browsers. Runs
+   until cancelled. *)
+let pump t (stream : Chat_message.t Eio.Stream.t) =
+  let rec loop () =
+    broadcast t (event_of_message (Eio.Stream.take stream)) ;
+    loop ()
   in
-  let server =
-    Cohttp_eio.Server.make_response_action
-      ~callback:(fun conn req body -> callback t env conn req body)
-      ()
+  loop ()
+
+(* Answers requests on [socket] until cancelled: those for a path in [routes]
+   with its handler, all others with [default]. *)
+let serve ~socket ~routes ~(default : handler) =
+  let callback conn (req : Http.Request.t) body =
+    let path = Uri.path (Uri.of_string req.resource) in
+    let h =
+      List.Assoc.find routes ~equal:String.equal path |> Option.value ~default
+    in
+    h conn req body
   in
-  Eio.Fiber.first
-    (fun () ->
-      Cohttp_eio.Server.run socket server ~on_error:(fun exn ->
-          Eio.traceln "web: %s" (Exn.to_string exn) ) )
-    (fun () ->
-      let rec loop () =
-        broadcast t (event_of_message (Eio.Stream.take stream)) ;
-        loop ()
-      in
-      loop () )
+  Cohttp_eio.Server.run socket
+    (Cohttp_eio.Server.make_response_action ~callback ()) ~on_error:(fun exn ->
+      Eio.traceln "web: %s" (Exn.to_string exn) )

@@ -12,22 +12,22 @@ let stream =
      and port =
        flag "--port"
          (optional_with_default 8080 int)
-         ~doc:"PORT port for --serve to listen on (default 8080)"
+         ~doc:
+           "PORT port for the web page and Twitch webhooks to listen on \
+            (default 8080)"
      and bind =
        flag "--bind"
          (optional_with_default "127.0.0.1" string)
-         ~doc:"ADDR address for --serve to listen on (default 127.0.0.1)"
+         ~doc:
+           "ADDR address for the web page and Twitch webhooks to listen on \
+            (default 127.0.0.1)"
      and twitch =
        flag "--twitch" (optional string) ~doc:"CHANNEL Twitch channel to read"
-     and twitch_callback =
-       flag "--twitch-callback" (optional string)
+     and public_url =
+       flag "--public-url" (optional string)
          ~doc:
-           "URL public HTTPS URL (port 443) that reaches --twitch-port; Twitch \
-            posts chat there (required with --twitch)"
-     and twitch_port =
-       flag "--twitch-port"
-         (optional_with_default 8081 int)
-         ~doc:"PORT port on --bind to receive Twitch webhooks on (default 8081)"
+           "URL public HTTPS base URL (port 443) that reaches --port; Twitch \
+            posts chat to URL/twitch/eventsub (required with --twitch)"
      and twitch_as =
        flag "--twitch-as" (optional string)
          ~doc:"LOGIN Twitch user to read chat as (default: the broadcaster)"
@@ -36,8 +36,8 @@ let stream =
          ~doc:"TARGET YouTube @handle, video ID or URL"
      in
      fun () ->
-       Stream.run ~serve ~port ~bind ?twitch ?twitch_callback ~twitch_port
-         ?twitch_as ?youtube () )
+       Stream.run ~serve ~port ~bind ?twitch ?public_url ?twitch_as ?youtube ()
+    )
 
 let twitch_auth_url =
   Command.basic

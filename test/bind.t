@@ -1,7 +1,7 @@
 Simple but effective error messages:
 
   $ TWITCH_CLIENT_ID=x TWITCH_CLIENT_SECRET=x chat stream --twitch x \
-  >   --twitch-callback https://example.invalid/ --serve --port 8099 \
+  >   --public-url https://example.invalid/ --serve --port 8099 \
   >   --bind nosuch.invalid
   stream: --bind: cannot resolve "nosuch.invalid"
   [2]
@@ -12,6 +12,5 @@ Simple but effective error messages:
   $ trap "kill $!" EXIT
   $ while [ ! -s up ]; do sleep 0.05; done
   $ YOUTUBE_API_KEY=x chat stream --youtube x --serve --port 18099
-  +serving on port 18099 of 127.0.0.1
   stream: --port: 127.0.0.1 port 18099 already in use
   [2]
