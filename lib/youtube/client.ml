@@ -120,7 +120,6 @@ let https ~authenticator =
     in
     Tls_eio.client_of_flow ?host tls_config raw
 
-(* $YOUTUBE_API_KEY, or exits with an error if it isn't set. *)
 let api_key env =
   match Sys.getenv "YOUTUBE_API_KEY" with
   | None | Some "" ->

@@ -21,7 +21,6 @@ let base_url =
 let uri ~key endpoint params =
   Uri.with_query' (Uri.of_string (base_url ^ endpoint)) (("key", key) :: params)
 
-(* The [Api_error] for a failed request's body. *)
 let api_error ~status body =
   let error =
     match Api_json.error_payload_of_yojson (Yojson.Safe.from_string body) with

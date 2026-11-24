@@ -28,8 +28,6 @@ let getenv_exn env var =
   | Some v ->
       v
 
-(* $TWITCH_CLIENT_ID and $TWITCH_CLIENT_SECRET, or exits with an error if
-   either isn't set. *)
 let credentials env =
   (getenv_exn env "TWITCH_CLIENT_ID", getenv_exn env "TWITCH_CLIENT_SECRET")
 

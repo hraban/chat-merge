@@ -66,5 +66,4 @@ let output_filters = [sanitize_controls; sanitize_spoofing]
    the line so far, piped into the next filter. *)
 let apply_filters line filters = List.fold filters ~init:line ~f:( |> )
 
-(* [s] through every output filter. *)
 let clean s = apply_filters s output_filters
