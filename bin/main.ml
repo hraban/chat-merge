@@ -7,8 +7,12 @@ open! Core
 let stream =
   Command.basic ~summary:"Interleave Twitch and YouTube chat as it arrives"
     (let%map_open.Command serve =
-       flag "--serve" (optional int)
-         ~doc:"PORT serve messages as a web page instead of printing"
+       flag "--serve" no_arg
+         ~doc:" serve messages as a web page instead of printing"
+     and port =
+       flag "--port"
+         (optional_with_default 8080 int)
+         ~doc:"PORT port for --serve to listen on (default 8080)"
      and bind =
        flag "--bind"
          (optional_with_default "127.0.0.1" string)
@@ -32,8 +36,8 @@ let stream =
          ~doc:"TARGET YouTube @handle, video ID or URL"
      in
      fun () ->
-       Stream.run ~serve ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as
-         ?youtube () )
+       Stream.run ~serve ~port ~bind ?twitch ?twitch_callback ~twitch_port
+         ?twitch_as ?youtube () )
 
 let twitch_auth_url =
   Command.basic

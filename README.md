@@ -27,7 +27,7 @@ Requirements:
 
        $ chat stream --twitch harlybarluy \
          --twitch-callback https://my-bot.example.com/twitch \
-         --twitch-port 443 --serve 8080
+         --twitch-port 443 --serve
 
 Developed for:
 

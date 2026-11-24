@@ -48,7 +48,7 @@ to read, so the client gives up.
 Port already in use:
 
   $ chat stream --twitch chan --twitch-callback $callback --twitch-port 18081 \
-  >   --serve 18081
+  >   --serve --port 18081
   +serving on port 18081 of 127.0.0.1
   stream: --twitch-port: 127.0.0.1 port 18081 already in use
   [2]

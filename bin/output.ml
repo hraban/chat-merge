@@ -46,7 +46,7 @@ let with_web_sink env ~addr ~port produce =
   let stream = Eio.Stream.create 1024 in
   Eio.Fiber.first
     (fun () ->
-      listening env ~flag:"--serve" ~addr ~port (fun () ->
+      listening env ~flag:"--port" ~addr ~port (fun () ->
           Web_server.run env ~addr ~port ~stream ) )
     (fun () -> produce stream)
 
@@ -60,11 +60,11 @@ let resolve_bind env bind =
       Usage.error env "--bind: cannot resolve %S" bind
 
 (* Picks the sink from the --serve flag. [addr] is only forced when serving. *)
-let with_sink env ~serve ~addr produce =
+let with_sink env ~serve ~port ~addr produce =
   match serve with
-  | None ->
+  | false ->
       with_stdout_sink env produce
-  | Some port ->
+  | true ->
       let addr = Lazy.force addr in
       Eio.traceln "serving on port %d of %a" port Eio.Net.Ipaddr.pp addr ;
       with_web_sink env ~addr ~port produce

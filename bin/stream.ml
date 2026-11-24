@@ -4,8 +4,8 @@
 open! Core
 open Option.Monad_infix
 
-let run ~serve ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as ?youtube
-    () =
+let run ~serve ~port ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as
+    ?youtube () =
   Eio_main.run
   @@ fun env ->
   Mirage_crypto_rng_unix.use_default () ;
@@ -37,7 +37,7 @@ let run ~serve ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as ?youtube
   let youtube =
     youtube >>| fun target -> (Youtube.Client.api_key env, target)
   in
-  Output.with_sink env ~serve ~addr
+  Output.with_sink env ~serve ~port ~addr
   @@ fun stream ->
   Eio.Fiber.both
     (fun () ->
