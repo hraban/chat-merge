@@ -45,4 +45,12 @@ to read, so the client gives up.
   +twitch: removing stale subscription stale (webhook_callback_verification_failed)
   +#nobody: no such channel
 
+The webhook listener can't take a port that's already in use, here by --serve:
+
+  $ chat stream --twitch chan --twitch-callback $callback --twitch-port 18081 \
+  >   --serve 18081
+  +serving on port 18081 of 127.0.0.1
+  stream: --twitch-port: 127.0.0.1 port 18081 already in use
+  [2]
+
   $ kill %1

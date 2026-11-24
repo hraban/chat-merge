@@ -8,6 +8,7 @@
   core
   core_unix.command_unix
   eio
+  eio.unix
   eio_main
   mirage-crypto-rng.unix)
  (preprocess

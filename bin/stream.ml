@@ -42,7 +42,9 @@ let run ~serve ~bind ?twitch ?twitch_callback ~twitch_port ?twitch_as ?youtube
   Eio.Fiber.both
     (fun () ->
       Option.iter twitch ~f:(fun (config, channel) ->
-          Twitch.Client.follow env ~config ~stream [channel] ) )
+          Output.listening env ~flag:"--twitch-port" ~addr:(Lazy.force addr)
+            ~port:twitch_port (fun () ->
+              Twitch.Client.follow env ~config ~stream [channel] ) ) )
     (fun () ->
       Option.iter youtube ~f:(fun (key, target) ->
           Youtube.Client.follow_targets env ~key ~stream [target] ) )

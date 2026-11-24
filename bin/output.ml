@@ -33,12 +33,23 @@ let with_stdout_sink env produce =
   in
   drain ()
 
+(* Runs [f], which listens on [addr]:[port], turning "address in use" into a
+   usage error that blames [flag]. *)
+let listening env ~flag ~addr ~port f =
+  try f ()
+  with Eio.Io (Eio.Exn.X (Eio_unix.Unix_error (EADDRINUSE, _, _)), _) ->
+    Usage.error env "%s: %s port %d already in use" flag
+      (Format.asprintf "%a" Eio.Net.Ipaddr.pp addr)
+      port
+
 (* Like [with_stdout_sink], but serves the messages to browsers on
    [addr]:[port] instead; runs until [produce] returns. *)
 let with_web_sink env ~addr ~port produce =
   let stream = Eio.Stream.create 1024 in
   Eio.Fiber.first
-    (fun () -> Web_server.run env ~addr ~port ~stream)
+    (fun () ->
+      listening env ~flag:"--serve" ~addr ~port (fun () ->
+          Web_server.run env ~addr ~port ~stream ) )
     (fun () -> produce stream)
 
 let resolve_bind env bind =

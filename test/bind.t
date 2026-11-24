@@ -5,3 +5,13 @@ Simple but effective error messages:
   >   --bind nosuch.invalid
   stream: --bind: cannot resolve "nosuch.invalid"
   [2]
+
+  $ python3 -c 'import socket, time
+  > s = socket.socket(); s.bind(("127.0.0.1", 18099)); s.listen()
+  > print("up", flush=True); time.sleep(30)' > up &
+  $ trap "kill $!" EXIT
+  $ while [ ! -s up ]; do sleep 0.05; done
+  $ YOUTUBE_API_KEY=x chat stream --youtube x --serve 18099
+  +serving on port 18099 of 127.0.0.1
+  stream: --serve: 127.0.0.1 port 18099 already in use
+  [2]
