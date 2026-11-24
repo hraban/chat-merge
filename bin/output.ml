@@ -33,8 +33,6 @@ let with_stdout_sink env produce =
   in
   drain ()
 
-(* Runs [f], which listens on [addr]:[port], turning "address in use" into a
-   usage error that blames [flag]. *)
 let listening env ~flag ~addr ~port f =
   try f ()
   with Eio.Io (Eio.Exn.X (Eio_unix.Unix_error (EADDRINUSE, _, _)), _) ->
