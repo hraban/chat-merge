@@ -41,7 +41,6 @@ let with_web_sink env ~addr ~port produce =
     (fun () -> Web_server.run env ~addr ~port ~stream)
     (fun () -> produce stream)
 
-(* Reports a bad command line argument on stderr and exits with status 2. *)
 let usage_error env fmt =
   ksprintf
     (fun msg ->
@@ -49,8 +48,6 @@ let usage_error env fmt =
       exit 2 )
     fmt
 
-(* Resolves the --bind argument to an IP address, exiting with a usage error
-   if it can't be. *)
 let resolve_bind env bind =
   match Eio.Net.getaddrinfo_stream (Eio.Stdenv.net env) bind with
   | `Tcp (addr, _) :: _ ->
